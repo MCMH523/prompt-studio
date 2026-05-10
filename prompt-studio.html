@@ -1,0 +1,2147 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Prompt Studio · 프롬프트 작업실</title>
+<style>
+  :root {
+    --bg: #0f1115;
+    --bg-2: #161922;
+    --bg-3: #1d2230;
+    --line: #2a3142;
+    --text: #e6e8ee;
+    --text-dim: #9aa3b2;
+    --text-mute: #6c7385;
+    --accent: #7c9cff;
+    --accent-2: #8b5cf6;
+    --good: #4ade80;
+    --warn: #fbbf24;
+    --bad: #f87171;
+    --chip: #232938;
+    --shadow: 0 6px 24px rgba(0,0,0,.35);
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+  button { font-family: inherit; }
+  textarea, input, select {
+    font-family: inherit;
+    color: var(--text);
+    background: var(--bg-2);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 8px 10px;
+    outline: none;
+    transition: border-color .15s;
+  }
+  textarea:focus, input:focus, select:focus { border-color: var(--accent); }
+  textarea { resize: vertical; line-height: 1.55; }
+  ::-webkit-scrollbar { width: 10px; height: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #2a3142; border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: #3a4258; }
+
+  /* Layout */
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  header.topbar {
+    display: flex; align-items: center; gap: 16px;
+    padding: 10px 16px; background: var(--bg-2); border-bottom: 1px solid var(--line);
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+  .brand .logo {
+    width: 26px; height: 26px; border-radius: 7px;
+    background: linear-gradient(135deg, var(--accent), var(--accent-2));
+    display: grid; place-items: center; color: white; font-size: 14px; font-weight: 800;
+  }
+  .tabs { display: flex; gap: 4px; margin-left: 8px; }
+  .tab {
+    border: none; background: transparent; color: var(--text-dim);
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; font-size: 13px;
+  }
+  .tab:hover { color: var(--text); background: var(--bg-3); }
+  .tab.active { color: var(--text); background: var(--bg-3); box-shadow: inset 0 0 0 1px var(--line); }
+  .topbar .spacer { flex: 1; }
+  .icon-btn {
+    border: 1px solid var(--line); background: var(--bg-3); color: var(--text-dim);
+    padding: 7px 10px; border-radius: 8px; cursor: pointer; font-size: 12px;
+  }
+  .icon-btn:hover { color: var(--text); border-color: #3a4258; }
+
+  main { flex: 1; min-height: 0; }
+  .view { display: none; height: 100%; }
+  .view.active { display: flex; }
+
+  /* Prompts view */
+  .pane-list {
+    width: 320px; min-width: 280px; max-width: 420px;
+    border-right: 1px solid var(--line); background: var(--bg-2);
+    display: flex; flex-direction: column;
+  }
+  .folders-pane { width: 220px; min-width: 200px; max-width: 280px; }
+  .folder-item .folder-actions {
+    display: inline-flex; gap: 2px; opacity: 0; transition: opacity .15s;
+  }
+  .folder-item:hover .folder-actions { opacity: 1; }
+  .folder-item.active .folder-actions { opacity: .7; }
+  .folder-item .folder-action {
+    background: transparent; border: none; color: var(--text-mute);
+    cursor: pointer; padding: 2px 4px; font-size: 12px; border-radius: 4px;
+  }
+  .folder-item .folder-action:hover { color: var(--text); background: var(--bg-3); }
+  .folder-section-label {
+    padding: 8px 12px 4px; font-size: 11px; color: var(--text-mute);
+    text-transform: uppercase; letter-spacing: .04em; font-weight: 600;
+  }
+  .folder-icon-btn {
+    cursor: pointer; padding: 1px 3px; border-radius: 4px;
+    transition: background .12s, transform .12s;
+    display: inline-block;
+  }
+  .folder-icon-btn:hover {
+    background: var(--bg); transform: scale(1.15);
+  }
+  .icon-picker-popup {
+    position: fixed; background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: 10px; padding: 10px; box-shadow: var(--shadow);
+    z-index: 250; width: 280px;
+  }
+  .icon-picker-grid {
+    display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; margin-bottom: 8px;
+  }
+  .icon-picker-grid button {
+    padding: 6px 0; font-size: 18px; cursor: pointer; line-height: 1;
+    background: var(--bg-3); border: 1px solid transparent; border-radius: 6px;
+    transition: border-color .12s, background .12s;
+  }
+  .icon-picker-grid button:hover {
+    border-color: var(--accent); background: var(--bg);
+  }
+  .icon-picker-grid button.current {
+    border-color: var(--accent); background: var(--bg);
+  }
+  .icon-picker-custom {
+    display: flex; gap: 4px; align-items: center;
+    padding-top: 8px; border-top: 1px solid var(--line);
+  }
+  .icon-picker-custom input {
+    flex: 1; font-size: 14px; text-align: center; padding: 5px;
+  }
+  .pane-head {
+    padding: 12px; display: flex; gap: 8px; align-items: center; border-bottom: 1px solid var(--line);
+  }
+  .pane-head input[type="search"] { flex: 1; }
+  .btn {
+    background: var(--accent); border: none; color: white;
+    padding: 8px 12px; border-radius: 8px; cursor: pointer; font-weight: 600; font-size: 13px;
+  }
+  .btn:hover { filter: brightness(1.1); }
+  .btn.secondary { background: var(--bg-3); color: var(--text); border: 1px solid var(--line); }
+  .btn.ghost { background: transparent; color: var(--text-dim); border: 1px solid var(--line); }
+  .btn.danger { background: #3b1f24; color: var(--bad); border: 1px solid #5a2a31; }
+  .btn.tiny { padding: 5px 8px; font-size: 12px; font-weight: 500; }
+
+  .list { flex: 1; overflow-y: auto; padding: 6px; }
+  .list-item {
+    padding: 10px 12px; border-radius: 8px; cursor: pointer;
+    border: 1px solid transparent; margin-bottom: 4px;
+  }
+  .list-item:hover { background: var(--bg-3); }
+  .list-item.active { background: var(--bg-3); border-color: var(--line); }
+  .list-item .title { font-weight: 600; margin-bottom: 4px; word-break: break-word; }
+  .list-item .meta { font-size: 11px; color: var(--text-mute); display: flex; gap: 6px; flex-wrap: wrap; }
+  .tag {
+    display: inline-block; padding: 1px 7px; border-radius: 100px;
+    background: var(--chip); color: var(--text-dim); font-size: 11px;
+  }
+  .tag.cat { background: #2b2245; color: #c4b5fd; }
+
+  .pane-main { flex: 1; min-width: 0; display: flex; flex-direction: column; background: var(--bg); }
+  .editor-head {
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+    display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  }
+  .editor-head input.title { flex: 1; min-width: 200px; font-weight: 600; font-size: 15px; }
+  .editor-body { flex: 1; min-height: 0; display: grid; grid-template-columns: 1fr 320px; }
+  .editor-main { padding: 14px 16px; display: flex; flex-direction: column; min-width: 0; }
+  .editor-side { border-left: 1px solid var(--line); background: var(--bg-2); padding: 14px; overflow-y: auto; }
+  .editor-main label, .editor-side label { font-size: 12px; color: var(--text-dim); display: block; margin-bottom: 6px; }
+  .editor-main textarea.body { flex: 1; min-height: 200px; font-size: 14px; }
+  .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .row + .row { margin-top: 10px; }
+  .field { margin-bottom: 14px; }
+  .empty {
+    flex: 1; display: grid; place-items: center; color: var(--text-mute);
+  }
+  .empty-card { text-align: center; max-width: 380px; }
+  .empty-card h3 { color: var(--text); margin: 0 0 8px; }
+  .empty-card p { margin: 0 0 16px; }
+
+  /* Word Bank view */
+  .wb-cats {
+    width: 260px; min-width: 220px; border-right: 1px solid var(--line);
+    background: var(--bg-2); display: flex; flex-direction: column;
+  }
+  .wb-main {
+    flex: 1; display: flex; flex-direction: column;
+    min-width: 0; min-height: 0;
+    padding: 14px 16px;
+  }
+  .wb-words {
+    display: flex; flex-wrap: wrap; gap: 8px; padding: 10px;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--bg-2);
+    flex: 1; min-height: 80px;
+    overflow-y: auto;
+    align-content: flex-start;
+  }
+  .word-chip {
+    background: var(--chip); border: 1px solid var(--line); padding: 4px 10px;
+    border-radius: 100px; display: inline-flex; gap: 6px; align-items: center;
+    font-size: 13px;
+  }
+  .word-chip button {
+    background: transparent; border: none; color: var(--text-mute); cursor: pointer;
+    padding: 0; font-size: 14px; line-height: 1;
+  }
+  .word-chip button:hover { color: var(--bad); }
+
+  /* Compose view */
+  .compose { display: grid; grid-template-columns: 320px 1fr 360px; height: 100%; }
+  .compose-pick {
+    border-right: 1px solid var(--line); background: var(--bg-2);
+    display: flex; flex-direction: column;
+  }
+  .compose-build { display: flex; flex-direction: column; min-width: 0; }
+  .compose-tools {
+    border-left: 1px solid var(--line); background: var(--bg-2); overflow-y: auto;
+    padding: 14px;
+  }
+  .compose-build .toolbar {
+    padding: 10px 16px; border-bottom: 1px solid var(--line);
+    display: flex; gap: 8px; flex-wrap: wrap; align-items: center;
+  }
+  .compose-build .preview {
+    flex: 1; padding: 14px 16px; display: grid; grid-template-rows: 1fr auto 1fr; gap: 12px; min-height: 0;
+  }
+  .preview-block { display: flex; flex-direction: column; min-height: 0; }
+  .preview-block label {
+    font-size: 12px; color: var(--text-dim); margin-bottom: 6px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .preview-block textarea {
+    flex: 1; min-height: 100px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+    font-size: 13.5px; line-height: 1.6;
+  }
+  .preview-divider {
+    display: flex; gap: 8px; align-items: center; justify-content: center;
+    color: var(--text-mute); font-size: 12px;
+  }
+  .preview-divider hr { flex: 1; border: 0; border-top: 1px dashed var(--line); }
+
+  /* Tools panel */
+  .tools-section { margin-bottom: 18px; }
+  .tools-section h4 {
+    margin: 0 0 8px; font-size: 12px; color: var(--text-dim);
+    text-transform: uppercase; letter-spacing: .04em; font-weight: 600;
+  }
+  .placeholder-row {
+    display: grid; grid-template-columns: 1fr auto auto; gap: 6px;
+    margin-bottom: 6px; align-items: start;
+    padding: 8px; background: var(--bg-3); border-radius: 8px;
+  }
+  .placeholder-row .ph-name { font-family: ui-monospace, monospace; font-size: 12.5px; color: #c4b5fd; font-weight: 600; }
+  .placeholder-row .ph-val { color: var(--text); font-size: 12.5px; }
+  .ph-cat-select { width: 100%; margin-top: 4px; font-size: 12px; padding: 4px 6px; }
+  .ph-val-input { width: 100%; margin-top: 4px; font-size: 12.5px; padding: 4px 6px; }
+  .placeholder-row > button { align-self: start; margin-top: 0; }
+
+  .score-bar {
+    height: 8px; background: var(--bg-3); border-radius: 100px; overflow: hidden;
+    margin: 6px 0;
+  }
+  .score-fill {
+    height: 100%; background: linear-gradient(90deg, var(--bad), var(--warn), var(--good));
+    width: 0%; transition: width .4s;
+  }
+  .suggestions { display: flex; flex-direction: column; gap: 8px; }
+  .suggestion {
+    padding: 8px 10px; background: var(--bg-3); border-radius: 8px; font-size: 12.5px;
+    border-left: 3px solid var(--accent);
+  }
+  .suggestion.warn { border-left-color: var(--warn); }
+  .suggestion.bad { border-left-color: var(--bad); }
+  .suggestion.good { border-left-color: var(--good); }
+  .suggestion .label { font-weight: 600; margin-bottom: 2px; color: var(--text); }
+  .suggestion .desc { color: var(--text-dim); }
+
+  /* Modal */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(0,0,0,.55);
+    display: none; align-items: center; justify-content: center; z-index: 100;
+  }
+  .modal-bg.open { display: flex; }
+  .modal {
+    background: var(--bg-2); border: 1px solid var(--line); border-radius: 12px;
+    padding: 20px; width: 520px; max-width: 92vw;
+    max-height: 88vh; overflow-y: auto;
+    box-shadow: var(--shadow);
+  }
+  .modal-section {
+    margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line);
+  }
+  .modal-section h4 {
+    margin: 0 0 10px; font-size: 13px; color: var(--text);
+    display: flex; align-items: center; gap: 6px;
+  }
+  .sync-status {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 3px 9px; border-radius: 100px; font-size: 11.5px;
+    background: var(--bg-3); color: var(--text-dim);
+  }
+  .sync-status.ok { color: var(--good); }
+  .sync-status.warn { color: var(--warn); }
+  .sync-status.bad { color: var(--bad); }
+  .sync-status.busy { color: var(--accent); }
+  .sync-spin {
+    display: inline-block; width: 10px; height: 10px;
+    border: 2px solid var(--line); border-top-color: var(--accent);
+    border-radius: 50%; animation: sync-spin 0.8s linear infinite;
+  }
+  @keyframes sync-spin { to { transform: rotate(360deg); } }
+  .modal h3 { margin: 0 0 12px; }
+  .modal .actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    background: var(--bg-3); border: 1px solid var(--line);
+    color: var(--text); padding: 10px 16px; border-radius: 8px;
+    box-shadow: var(--shadow); z-index: 200;
+    opacity: 0; pointer-events: none; transition: opacity .25s, transform .25s;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(-4px); }
+  .toast.error { border-color: #5a2a31; color: var(--bad); }
+
+  .help { font-size: 12px; color: var(--text-mute); margin-top: 6px; line-height: 1.55; }
+  .kbd {
+    display: inline-block; padding: 1px 6px; border-radius: 4px;
+    background: var(--bg-3); border: 1px solid var(--line);
+    font-family: ui-monospace, monospace; font-size: 11.5px;
+  }
+  .pill {
+    display: inline-flex; align-items: center; gap: 4px;
+    padding: 2px 8px; border-radius: 100px; background: var(--bg-3);
+    font-size: 11.5px; color: var(--text-dim);
+  }
+  .pill.good { color: var(--good); }
+  .pill.warn { color: var(--warn); }
+  .pill.bad { color: var(--bad); }
+
+  /* ============================================
+   * Responsive — tablet and mobile
+   * ============================================ */
+  /* Touch devices: always show hover-only actions */
+  @media (hover: none) {
+    .folder-item .folder-actions { opacity: 1; }
+  }
+
+  /* Tablet & narrow desktop (≤960px): stack panes vertically */
+  @media (max-width: 960px) {
+    body { overflow-y: auto; }
+    .app { height: auto; min-height: 100vh; }
+    main { flex: 1 1 auto; min-height: 0; overflow: visible; }
+    .view.active { flex-direction: column; height: auto; }
+
+    /* All side panes become full-width sections */
+    .pane-list, .folders-pane, .wb-cats,
+    .pane-main, .compose-pick, .compose-build, .compose-tools, .wb-main {
+      width: 100% !important;
+      max-width: none !important;
+      min-width: 0 !important;
+    }
+    .pane-list, .folders-pane, .wb-cats {
+      border-right: none;
+      border-bottom: 1px solid var(--line);
+    }
+    .compose-tools {
+      border-left: none;
+      border-top: 1px solid var(--line);
+    }
+
+    /* Limit list heights so they don't push everything else off-screen */
+    .folders-pane .list { max-height: 240px; }
+    .pane-list:not(.folders-pane) .list { max-height: 320px; }
+    .wb-cats .list { max-height: 240px; }
+
+    .pane-main, .compose-build, .wb-main { min-height: 480px; }
+
+    /* Compose grid → single column */
+    .compose {
+      display: flex !important;
+      flex-direction: column !important;
+      height: auto !important;
+    }
+    .compose-build .preview {
+      grid-template-rows: auto auto auto;
+    }
+    .compose-build .preview textarea { min-height: 200px; }
+
+    /* Editor side panel below body, not beside */
+    .editor-body {
+      display: flex !important;
+      flex-direction: column !important;
+    }
+    .editor-side {
+      border-left: none;
+      border-top: 1px solid var(--line);
+    }
+
+    /* Topbar reflow */
+    .topbar { padding: 8px 10px; gap: 6px; flex-wrap: wrap; }
+    .tabs { gap: 2px; }
+
+    /* Folder hover actions slightly visible by default */
+    .folder-item .folder-actions { opacity: .65; }
+
+    /* Larger tap targets */
+    .list-item { padding: 12px 12px; }
+    .tab { padding: 9px 12px; }
+  }
+
+  /* Phone (≤480px): tighter spacing, hide brand text, larger inputs */
+  @media (max-width: 480px) {
+    body { font-size: 13px; }
+    .brand > div:not(.logo) { display: none; }
+    .topbar { padding: 6px 8px; gap: 4px; }
+    .tab { padding: 8px 10px; font-size: 12px; }
+    .icon-btn { padding: 6px 8px; font-size: 11px; }
+    .btn { padding: 9px 12px; }
+    .btn.tiny { padding: 6px 9px; font-size: 12px; }
+    .pane-head { padding: 10px; gap: 6px; }
+    .editor-head { padding: 10px; }
+    .editor-main, .compose-build .preview { padding: 10px; }
+    .compose-tools { padding: 10px; }
+    .wb-main { padding: 10px; }
+
+    /* Single-column emoji grid scales down */
+    .icon-picker-popup { width: calc(100vw - 20px); max-width: 320px; }
+    .icon-picker-grid { grid-template-columns: repeat(6, 1fr); }
+
+    /* Modal full-width on phone */
+    .modal { width: calc(100vw - 24px); padding: 16px; }
+
+    /* Larger textarea for typing */
+    .editor-main textarea.body { font-size: 15px; }
+    .compose-build .preview textarea { font-size: 14px; }
+    textarea, input, select { font-size: 14px; padding: 9px 10px; }
+
+    /* Compose toolbar wraps */
+    .compose-build .toolbar { padding: 8px 10px; }
+    #composeTitle { width: 100%; }
+    #genCount { width: 50px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">P</div>
+      <div>Prompt Studio</div>
+    </div>
+    <nav class="tabs">
+      <button class="tab active" data-view="compose">작성</button>
+      <button class="tab" data-view="prompts">프롬프트</button>
+      <button class="tab" data-view="wordbank">단어장</button>
+    </nav>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="btnExport">내보내기</button>
+    <button class="icon-btn" id="btnImport">가져오기</button>
+    <button class="icon-btn" id="btnSettings">⚙ 설정</button>
+  </header>
+
+  <main>
+    <!-- ============ COMPOSE VIEW ============ -->
+    <section class="view active" id="view-compose">
+      <div class="compose">
+        <!-- Pick -->
+        <div class="compose-pick">
+          <div class="pane-head" style="flex-direction: column; align-items: stretch; gap: 6px;">
+            <select id="composeFolderFilter" style="width:100%"></select>
+            <input type="search" id="composeSearch" placeholder="프롬프트 검색…" />
+          </div>
+          <div class="list" id="composeList"></div>
+        </div>
+
+        <!-- Build -->
+        <div class="compose-build">
+          <div class="toolbar">
+            <span id="composeTitle" style="font-weight:600;">프롬프트 선택</span>
+            <span class="spacer" style="flex:1"></span>
+            <input type="number" id="genCount" value="1" min="1" max="100" title="한 번에 생성할 변형 개수 (1~100, 21개 이상은 클립보드로 자동 복사)" style="width:60px; padding:4px 6px; text-align:center;" />
+            <span style="color:var(--text-mute); font-size:12px;">개</span>
+            <button class="btn secondary tiny" id="btnReroll">🎲 무작위 생성</button>
+            <button class="btn secondary tiny" id="btnClearVals">초기화</button>
+            <button class="btn tiny" id="btnCopyOutput">복사</button>
+          </div>
+          <div class="preview">
+            <div class="preview-block">
+              <label>
+                템플릿
+                <span class="pill" id="phCount">placeholder 0개</span>
+              </label>
+              <textarea id="composeTemplate" placeholder="왼쪽에서 프롬프트를 선택하거나 여기에 직접 입력하세요.&#10;자리표시자: {{이름}} 또는 {A} 형식 (각각 단어장 카테고리에 매핑 가능)&#10;&#10;예: 다음 주제를 {A}한 말투로 {B}로 설명해줘. 주제: {C}"></textarea>
+            </div>
+            <div class="preview-divider"><hr/><span>↓ 자리표시자 채워서 ↓</span><hr/></div>
+            <div class="preview-block">
+              <label>
+                결과
+                <span id="outputStats" class="pill">0자</span>
+              </label>
+              <textarea id="composeOutput" placeholder="결과가 여기에 표시됩니다." readonly></textarea>
+            </div>
+          </div>
+        </div>
+
+        <!-- Tools -->
+        <div class="compose-tools">
+          <div class="tools-section">
+            <h4>자리표시자</h4>
+            <div id="placeholderList">
+              <div class="help">
+                템플릿에 <span class="kbd">{{이름}}</span> 형식으로 자리표시자를 넣으면 단어장에서 무작위로 채워집니다.
+                단어장에 없는 이름은 직접 입력할 수 있습니다.
+              </div>
+            </div>
+          </div>
+
+          <div class="tools-section">
+            <h4>프롬프트 분석</h4>
+            <div>
+              <div style="display:flex; justify-content:space-between; align-items:baseline;">
+                <span style="font-size:12px; color: var(--text-dim);">품질 점수</span>
+                <span id="scoreText" style="font-size:13px; font-weight:600;">—</span>
+              </div>
+              <div class="score-bar"><div class="score-fill" id="scoreFill"></div></div>
+            </div>
+            <div class="suggestions" id="suggestionList"></div>
+          </div>
+
+          <div class="tools-section">
+            <h4>AI 개선 제안</h4>
+            <div class="row" style="margin-bottom:8px;">
+              <button class="btn secondary tiny" id="btnAiImprove">✨ Claude로 개선</button>
+              <span id="aiStatus" class="pill">대기</span>
+            </div>
+            <div id="aiResult" style="font-size: 12.5px; color: var(--text-dim); white-space: pre-wrap;"></div>
+            <div class="help">설정 ⚙에서 Anthropic API 키를 입력하면 활성화됩니다.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PROMPTS VIEW ============ -->
+    <section class="view" id="view-prompts">
+      <div class="pane-list folders-pane">
+        <div class="pane-head">
+          <span style="flex:1; font-size:11px; color:var(--text-dim); font-weight:600; text-transform:uppercase; letter-spacing:.04em;">폴더</span>
+          <button class="btn tiny" id="btnNewFolder">+ 폴더</button>
+        </div>
+        <div class="list" id="folderList"></div>
+      </div>
+      <div class="pane-list">
+        <div class="pane-head">
+          <input type="search" id="promptSearch" placeholder="검색…" />
+          <button class="btn" id="btnNewPrompt">+ 새로</button>
+        </div>
+        <div class="list" id="promptList"></div>
+      </div>
+      <div class="pane-main" id="promptEditor">
+        <div class="empty">
+          <div class="empty-card">
+            <h3>프롬프트 저장소</h3>
+            <p>자주 쓰는 프롬프트를 저장하고 태그로 분류하세요. <span class="kbd">{{이름}}</span> 자리표시자를 활용하면 단어장에서 무작위로 채울 수 있습니다.</p>
+            <button class="btn" id="btnNewPrompt2">+ 첫 프롬프트 만들기</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WORDBANK VIEW ============ -->
+    <section class="view" id="view-wordbank">
+      <div class="wb-cats">
+        <div class="pane-head">
+          <input type="text" id="newCatName" placeholder="새 카테고리 이름…" style="flex:1" />
+          <button class="btn" id="btnNewCat">+</button>
+        </div>
+        <div class="list" id="catList"></div>
+      </div>
+      <div class="wb-main" id="wbMain">
+        <div class="empty">
+          <div class="empty-card">
+            <h3>단어장</h3>
+            <p>카테고리별로 단어를 모아두면, 프롬프트의 <span class="kbd">{{카테고리명}}</span> 자리표시자에 무작위로 삽입됩니다.</p>
+            <p class="help" style="margin-top: 12px">예: "톤" 카테고리에 "친근한, 전문적인, 유머러스한"을 넣고, 프롬프트에 <span class="kbd">{{톤}}</span>이라고 쓰면 자동으로 채워집니다.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- Settings Modal -->
+<div class="modal-bg" id="settingsModal">
+  <div class="modal">
+    <h3>설정</h3>
+    <div class="field">
+      <label>Anthropic API Key</label>
+      <input type="password" id="apiKeyInput" placeholder="sk-ant-..." style="width:100%" />
+      <div class="help">로컬 브라우저에만 저장됩니다. AI 개선 제안 기능에서 사용됩니다. 키는 <a href="https://console.anthropic.com/" target="_blank" style="color:var(--accent)">console.anthropic.com</a>에서 발급할 수 있습니다.</div>
+    </div>
+    <div class="field">
+      <label>모델</label>
+      <select id="modelSelect" style="width:100%">
+        <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (빠름, 저렴)</option>
+        <option value="claude-sonnet-4-6">Claude Sonnet 4.6 (균형)</option>
+        <option value="claude-opus-4-7">Claude Opus 4.7 (최고 품질)</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>전체 데이터</label>
+      <div class="row">
+        <button class="btn ghost tiny" id="btnSeed">샘플 데이터 불러오기</button>
+        <button class="btn danger tiny" id="btnReset">전체 초기화</button>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn secondary" id="btnSettingsClose">닫기</button>
+      <button class="btn" id="btnSettingsSave">저장</button>
+    </div>
+  </div>
+</div>
+
+<input type="file" id="importFile" accept=".json" multiple style="display:none" />
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+ * Prompt Studio — single-file web app
+ * 프롬프트 저장 / 단어장 / 자리표시자 / 실시간 개선
+ * ========================================================= */
+
+const STORE_KEY = 'prompt-studio-v1';
+const SETTINGS_KEY = 'prompt-studio-settings-v1';
+
+const state = {
+  prompts: [],            // {id, title, body, tags:[], folder, updatedAt}
+  wordbank: {},           // {categoryName: [word1, word2, ...]}
+  folders: [],            // string[] of folder names
+  folderIcons: {},        // {folderName: emoji} — overrides default 📁
+  selectedPromptId: null,
+  selectedCat: null,
+  selectedFolder: '__all__', // '__all__' | '__none__' | folder name
+  composeFolder: '__all__',
+  composePrompt: null,    // currently loaded into compose view (id or null for ad-hoc)
+  composeValues: {},      // {placeholderName: currentValue}
+  composeMappings: {},    // {placeholderName: categoryName} — overrides name-matching
+  generateCount: 1,       // number of variations to generate at once
+};
+
+const settings = {
+  apiKey: '',
+  model: 'claude-haiku-4-5-20251001',
+};
+
+/* ---------- Persistence ---------- */
+function save() {
+  localStorage.setItem(STORE_KEY, JSON.stringify({
+    prompts: state.prompts,
+    wordbank: state.wordbank,
+    folders: state.folders,
+    folderIcons: state.folderIcons,
+  }));
+}
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) {
+      const d = JSON.parse(raw);
+      state.prompts = d.prompts || [];
+      state.wordbank = d.wordbank || {};
+      state.folders = Array.isArray(d.folders) ? d.folders : [];
+      state.folderIcons = (d.folderIcons && typeof d.folderIcons === 'object') ? d.folderIcons : {};
+      // Migration: category → folder
+      let migrated = false;
+      for (const p of state.prompts) {
+        if (p.category != null && p.folder == null) {
+          p.folder = p.category;
+          migrated = true;
+        }
+        if (p.category != null) delete p.category;
+      }
+      // Build folders list from prompts if missing/empty
+      if (state.folders.length === 0) {
+        const set = new Set(state.prompts.map(p => p.folder).filter(Boolean));
+        state.folders = [...set];
+      } else {
+        // Ensure any folder referenced by prompts exists in folders list
+        const referenced = new Set(state.prompts.map(p => p.folder).filter(Boolean));
+        for (const f of referenced) {
+          if (!state.folders.includes(f)) state.folders.push(f);
+        }
+      }
+      if (migrated) save();
+    }
+  } catch (e) { console.warn('load failed', e); }
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY);
+    if (raw) Object.assign(settings, JSON.parse(raw));
+  } catch (e) {}
+}
+function saveSettings() {
+  localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings));
+}
+
+/* ---------- Utilities ---------- */
+const uid = () => Math.random().toString(36).slice(2, 10);
+const $ = (sel, el = document) => el.querySelector(sel);
+const $$ = (sel, el = document) => [...el.querySelectorAll(sel)];
+
+function toast(msg, isError) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.classList.toggle('error', !!isError);
+  el.classList.add('show');
+  clearTimeout(el._t);
+  el._t = setTimeout(() => el.classList.remove('show'), 2200);
+}
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+function pickRandom(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+// Match {{name}} (any chars except curlies/newline) OR {name} (alphanumeric/hangul/_/-, no spaces)
+// {{...}} is tried first to handle nested cases correctly.
+const PLACEHOLDER_RE = () => /\{\{\s*([^{}\n]+?)\s*\}\}|\{([A-Za-z0-9가-힣_\-]+)\}/g;
+
+function extractPlaceholders(text) {
+  const set = new Set();
+  const re = PLACEHOLDER_RE();
+  let m;
+  while ((m = re.exec(text)) !== null) set.add((m[1] || m[2]).trim());
+  return [...set];
+}
+function fillTemplate(template, values) {
+  return template.replace(PLACEHOLDER_RE(), (m, n1, n2) => {
+    const k = (n1 || n2).trim();
+    return values[k] != null && values[k] !== '' ? values[k] : m;
+  });
+}
+// Determine which word bank category to draw from for a placeholder name:
+// 1. Explicit user mapping (state.composeMappings[name]) if set
+// 2. Matching category name (legacy auto-match)
+// 3. None (manual input only)
+function getPlaceholderCategory(ph) {
+  const mapped = state.composeMappings[ph];
+  if (mapped && state.wordbank[mapped]) return mapped;
+  if (mapped === '') return null; // explicitly unmapped
+  if (state.wordbank[ph]) return ph;
+  return null;
+}
+
+/* ---------- Tabs ---------- */
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  $$('.tab').forEach(x => x.classList.toggle('active', x === t));
+  const v = t.dataset.view;
+  $$('.view').forEach(x => x.classList.toggle('active', x.id === 'view-' + v));
+  if (v === 'compose') renderComposeList();
+  if (v === 'prompts') { renderFolders(); renderPromptList(); }
+  if (v === 'wordbank') renderCategories();
+}));
+
+/* =========================================================
+ * FOLDERS
+ * ========================================================= */
+function renderFolders() {
+  const list = $('#folderList');
+  list.innerHTML = '';
+
+  const allCount = state.prompts.length;
+  const noneCount = state.prompts.filter(p => !p.folder).length;
+
+  const makeItem = (key, name, count, kind) => {
+    const el = document.createElement('div');
+    el.className = 'list-item folder-item' + (state.selectedFolder === key ? ' active' : '');
+    let icon, iconHtml;
+    if (kind === 'all') {
+      icon = '📚'; iconHtml = `<span>${icon}</span>`;
+    } else if (kind === 'none') {
+      icon = '📄'; iconHtml = `<span>${icon}</span>`;
+    } else {
+      icon = state.folderIcons[name] || '📁';
+      iconHtml = `<span class="folder-icon-btn" data-act="icon" title="클릭하여 아이콘 변경">${icon}</span>`;
+    }
+    const actions = kind === 'normal' ? `
+      <span class="folder-actions">
+        <button class="folder-action" data-act="rename" title="이름 변경">✏</button>
+        <button class="folder-action" data-act="delete" title="삭제">🗑</button>
+      </span>` : '';
+    el.innerHTML = `<div class="title" style="display:flex; align-items:center; gap:6px; margin:0;">
+      ${iconHtml}
+      <span style="flex:1; word-break:break-word; min-width:0;">${escapeHtml(name)}</span>
+      ${actions}
+      <span class="tag">${count}</span>
+    </div>`;
+    el.addEventListener('click', (e) => {
+      if (e.target.closest('.folder-action') || e.target.closest('.folder-icon-btn')) return;
+      state.selectedFolder = key;
+      renderFolders();
+      renderPromptList();
+    });
+    if (kind === 'normal') {
+      el.querySelectorAll('.folder-action').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const act = btn.dataset.act;
+          if (act === 'rename') renameFolder(name);
+          else if (act === 'delete') deleteFolder(name);
+        });
+      });
+      const iconBtn = el.querySelector('.folder-icon-btn');
+      if (iconBtn) {
+        iconBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          showIconPicker(name, iconBtn);
+        });
+      }
+    }
+    return el;
+  };
+
+  list.appendChild(makeItem('__all__', '전체', allCount, 'all'));
+  list.appendChild(makeItem('__none__', '미분류', noneCount, 'none'));
+
+  if (state.folders.length > 0) {
+    const label = document.createElement('div');
+    label.className = 'folder-section-label';
+    label.textContent = '내 폴더';
+    list.appendChild(label);
+  }
+
+  for (const f of [...state.folders].sort((a,b) => a.localeCompare(b, 'ko'))) {
+    const count = state.prompts.filter(p => p.folder === f).length;
+    list.appendChild(makeItem(f, f, count, 'normal'));
+  }
+}
+
+function createFolder() {
+  const name = prompt('새 폴더 이름:');
+  if (!name || !name.trim()) return;
+  const n = name.trim();
+  if (state.folders.includes(n)) { toast('이미 존재하는 폴더입니다', true); return; }
+  state.folders.push(n);
+  state.selectedFolder = n;
+  save();
+  renderFolders();
+  renderPromptList();
+  renderComposeList();
+  toast('폴더가 생성되었습니다');
+}
+
+function renameFolder(oldName) {
+  const newName = prompt(`폴더 이름 변경:`, oldName);
+  if (!newName || !newName.trim()) return;
+  const n = newName.trim();
+  if (n === oldName) return;
+  if (state.folders.includes(n)) { toast('이미 존재하는 이름입니다', true); return; }
+  state.folders = state.folders.map(f => f === oldName ? n : f);
+  for (const p of state.prompts) {
+    if (p.folder === oldName) p.folder = n;
+  }
+  // Migrate icon mapping
+  if (state.folderIcons[oldName]) {
+    state.folderIcons[n] = state.folderIcons[oldName];
+    delete state.folderIcons[oldName];
+  }
+  if (state.selectedFolder === oldName) state.selectedFolder = n;
+  save();
+  renderFolders();
+  renderPromptList();
+  renderComposeList();
+  if (state.selectedPromptId) renderPromptEditor();
+  toast('이름이 변경되었습니다');
+}
+
+function deleteFolder(name) {
+  const count = state.prompts.filter(p => p.folder === name).length;
+  const msg = count > 0
+    ? `"${name}" 폴더를 삭제합니다.\n안의 프롬프트 ${count}개는 "미분류"로 이동됩니다. (프롬프트는 보존됩니다)`
+    : `"${name}" 폴더를 삭제합니다.`;
+  if (!confirm(msg)) return;
+  state.folders = state.folders.filter(f => f !== name);
+  for (const p of state.prompts) {
+    if (p.folder === name) p.folder = '';
+  }
+  delete state.folderIcons[name];
+  if (state.selectedFolder === name) state.selectedFolder = '__all__';
+  save();
+  renderFolders();
+  renderPromptList();
+  renderComposeList();
+  if (state.selectedPromptId) renderPromptEditor();
+  toast('폴더가 삭제되었습니다');
+}
+
+/* ---------- Folder icon picker ---------- */
+const FOLDER_ICONS = [
+  '📁','📂','🗂️','📋','📌','📎','📄',
+  '💼','💻','📊','🎯','🎨','📝','✍️',
+  '📖','📚','🔖','💬','📧','⭐','🔥',
+  '⚡','💡','✅','⏰','🎵','🎬','🎮',
+  '🍔','🚗','✈️','🌍','🏠','🔒','🔑',
+  '🎁','💰','🔬','🧠','❤️','🌟','🎓',
+  '🛠️','🔧','🧪','🌱','🐾','🍎','🤖',
+];
+
+function setFolderIcon(folderName, icon) {
+  if (icon) state.folderIcons[folderName] = icon;
+  else delete state.folderIcons[folderName];
+  save();
+  renderFolders();
+}
+
+function showIconPicker(folderName, anchorEl) {
+  // Close any existing picker
+  document.querySelectorAll('.icon-picker-popup').forEach(el => el.remove());
+
+  const rect = anchorEl.getBoundingClientRect();
+  const popup = document.createElement('div');
+  popup.className = 'icon-picker-popup';
+  // Position below the icon, but adjust if it would overflow
+  const popupWidth = 280;
+  const left = Math.min(window.innerWidth - popupWidth - 8, Math.max(8, rect.left));
+  popup.style.left = left + 'px';
+  popup.style.top = (rect.bottom + 4) + 'px';
+
+  const current = state.folderIcons[folderName] || '📁';
+
+  const grid = document.createElement('div');
+  grid.className = 'icon-picker-grid';
+  for (const ic of FOLDER_ICONS) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = ic;
+    if (ic === current) btn.classList.add('current');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setFolderIcon(folderName, ic === '📁' ? null : ic); // 📁 is default
+      popup.remove();
+    });
+    grid.appendChild(btn);
+  }
+  popup.appendChild(grid);
+
+  const customRow = document.createElement('div');
+  customRow.className = 'icon-picker-custom';
+  customRow.innerHTML = `
+    <input type="text" placeholder="이모지 직접 입력" maxlength="6" />
+    <button type="button" class="btn tiny">적용</button>
+    <button type="button" class="btn ghost tiny">기본값</button>
+  `;
+  const [customInput, applyBtn, defaultBtn] = customRow.querySelectorAll('input, button');
+  applyBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const v = customInput.value.trim();
+    if (v) { setFolderIcon(folderName, v); popup.remove(); }
+  });
+  customInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); applyBtn.click(); }
+    if (e.key === 'Escape') popup.remove();
+  });
+  defaultBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setFolderIcon(folderName, null);
+    popup.remove();
+  });
+  popup.appendChild(customRow);
+
+  document.body.appendChild(popup);
+  setTimeout(() => customInput.focus(), 0);
+
+  // Close on outside click
+  setTimeout(() => {
+    const handler = (e) => {
+      if (!popup.contains(e.target)) {
+        popup.remove();
+        document.removeEventListener('click', handler);
+      }
+    };
+    document.addEventListener('click', handler);
+  }, 0);
+}
+
+/* =========================================================
+ * PROMPTS VIEW
+ * ========================================================= */
+function renderPromptList() {
+  const q = ($('#promptSearch').value || '').toLowerCase().trim();
+  const list = $('#promptList');
+  list.innerHTML = '';
+
+  let items = state.prompts;
+  // Folder filter
+  if (state.selectedFolder === '__none__') {
+    items = items.filter(p => !p.folder);
+  } else if (state.selectedFolder !== '__all__') {
+    items = items.filter(p => p.folder === state.selectedFolder);
+  }
+  // Search filter
+  items = items
+    .filter(p => !q || p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q) || (p.tags||[]).some(t => t.toLowerCase().includes(q)))
+    .sort((a,b) => b.updatedAt - a.updatedAt);
+
+  if (items.length === 0) {
+    let msg = q ? '결과 없음' : '저장된 프롬프트가 없습니다.';
+    if (!q && state.selectedFolder !== '__all__') {
+      msg = state.selectedFolder === '__none__' ? '미분류 프롬프트가 없습니다.' : '이 폴더는 비어있습니다.';
+    }
+    list.innerHTML = `<div style="padding:20px; text-align:center; color: var(--text-mute); font-size:13px;">${msg}</div>`;
+    return;
+  }
+  for (const p of items) {
+    const el = document.createElement('div');
+    el.className = 'list-item' + (p.id === state.selectedPromptId ? ' active' : '');
+    const tags = (p.tags || []).map(t => `<span class="tag">${escapeHtml(t)}</span>`).join(' ');
+    const fIcon = p.folder ? (state.folderIcons[p.folder] || '📁') : '';
+    const folder = p.folder ? `<span class="tag cat">${fIcon} ${escapeHtml(p.folder)}</span>` : '';
+    el.innerHTML = `<div class="title">${escapeHtml(p.title || '제목 없음')}</div><div class="meta">${folder} ${tags}</div>`;
+    el.addEventListener('click', () => { state.selectedPromptId = p.id; renderPromptList(); renderPromptEditor(); });
+    list.appendChild(el);
+  }
+}
+
+function renderPromptEditor() {
+  const root = $('#promptEditor');
+  const p = state.prompts.find(x => x.id === state.selectedPromptId);
+  if (!p) {
+    root.innerHTML = `<div class="empty"><div class="empty-card">
+      <h3>프롬프트를 선택하거나 만들어보세요</h3>
+      <p>왼쪽에서 프롬프트를 선택하거나, 새로 만들어 보세요.</p>
+      <button class="btn" id="btnNewPromptInline">+ 새 프롬프트</button>
+    </div></div>`;
+    $('#btnNewPromptInline').addEventListener('click', createPrompt);
+    return;
+  }
+  const folderOptions = [
+    `<option value="">(미분류)</option>`,
+    ...state.folders.map(f => `<option value="${escapeHtml(f)}" ${f === p.folder ? 'selected' : ''}>${escapeHtml(f)}</option>`),
+    `<option value="__new__">+ 새 폴더 만들기...</option>`
+  ].join('');
+
+  root.innerHTML = `
+    <div class="editor-head">
+      <input type="text" class="title" id="pTitle" value="${escapeHtml(p.title)}" placeholder="제목" />
+      <button class="btn secondary tiny" id="pUseInCompose">→ 작성에서 열기</button>
+      <button class="btn danger tiny" id="pDelete">삭제</button>
+    </div>
+    <div class="editor-body">
+      <div class="editor-main">
+        <label>본문 (자리표시자: <span class="kbd">{{이름}}</span> 또는 <span class="kbd">{A}</span>)</label>
+        <textarea id="pBody" class="body" placeholder="프롬프트 본문을 입력하세요…">${escapeHtml(p.body)}</textarea>
+        <div id="pPlaceholders" class="help" style="margin-top:8px;"></div>
+      </div>
+      <div class="editor-side">
+        <div class="field">
+          <label>📁 폴더</label>
+          <select id="pFolder" style="width:100%">${folderOptions}</select>
+        </div>
+        <div class="field">
+          <label>태그 (쉼표로 구분)</label>
+          <input type="text" id="pTags" value="${escapeHtml((p.tags || []).join(', '))}" placeholder="예: 블로그, 한국어, 요약" style="width:100%" />
+        </div>
+        <div class="field">
+          <label>저장 시간</label>
+          <div style="font-size:12px; color: var(--text-dim);">${new Date(p.updatedAt).toLocaleString('ko-KR')}</div>
+        </div>
+        <div class="row">
+          <button class="btn" id="pSave">저장</button>
+          <button class="btn ghost tiny" id="pCopy">본문 복사</button>
+        </div>
+      </div>
+    </div>
+  `;
+  // Folder dropdown handling — special "new folder" option
+  $('#pFolder').addEventListener('change', (e) => {
+    if (e.target.value === '__new__') {
+      const name = prompt('새 폴더 이름:');
+      if (name && name.trim()) {
+        const n = name.trim();
+        if (!state.folders.includes(n)) {
+          state.folders.push(n);
+          save();
+          renderFolders();
+          renderComposeList();
+        }
+        // Rebuild options with new folder selected
+        e.target.innerHTML = [
+          `<option value="">(미분류)</option>`,
+          ...state.folders.map(f => `<option value="${escapeHtml(f)}" ${f === n ? 'selected' : ''}>${escapeHtml(f)}</option>`),
+          `<option value="__new__">+ 새 폴더 만들기...</option>`
+        ].join('');
+        e.target.value = n;
+      } else {
+        e.target.value = p.folder || '';
+      }
+    }
+  });
+  const updatePh = () => {
+    const phs = extractPlaceholders($('#pBody').value);
+    $('#pPlaceholders').innerHTML = phs.length === 0
+      ? `자리표시자 없음`
+      : `자리표시자: ${phs.map(p => `<span class="kbd">${p.length <= 3 ? '{' + escapeHtml(p) + '}' : '{{' + escapeHtml(p) + '}}'}</span>`).join(' ')}`;
+  };
+  updatePh();
+  $('#pBody').addEventListener('input', updatePh);
+
+  $('#pSave').addEventListener('click', () => {
+    p.title = $('#pTitle').value.trim() || '제목 없음';
+    p.body = $('#pBody').value;
+    const folderVal = $('#pFolder').value;
+    p.folder = (folderVal && folderVal !== '__new__') ? folderVal : '';
+    p.tags = $('#pTags').value.split(',').map(t => t.trim()).filter(Boolean);
+    p.updatedAt = Date.now();
+    delete p.category; // remove legacy field if present
+    save();
+    renderFolders();
+    renderPromptList();
+    renderComposeList();
+    toast('저장되었습니다');
+  });
+  $('#pCopy').addEventListener('click', async () => {
+    await navigator.clipboard.writeText($('#pBody').value);
+    toast('본문이 복사되었습니다');
+  });
+  $('#pDelete').addEventListener('click', () => {
+    if (!confirm('이 프롬프트를 삭제하시겠습니까?')) return;
+    state.prompts = state.prompts.filter(x => x.id !== p.id);
+    state.selectedPromptId = null;
+    save();
+    renderFolders();
+    renderPromptList();
+    renderPromptEditor();
+    renderComposeList();
+    toast('삭제되었습니다');
+  });
+  $('#pUseInCompose').addEventListener('click', () => {
+    loadIntoCompose(p.id);
+    $$('.tab').forEach(x => x.classList.toggle('active', x.dataset.view === 'compose'));
+    $$('.view').forEach(x => x.classList.toggle('active', x.id === 'view-compose'));
+  });
+}
+
+function createPrompt() {
+  // If a specific user folder is currently selected, put the new prompt there
+  const initialFolder = (state.selectedFolder && !state.selectedFolder.startsWith('__'))
+    ? state.selectedFolder : '';
+  const p = {
+    id: uid(),
+    title: '새 프롬프트',
+    body: '',
+    tags: [],
+    folder: initialFolder,
+    updatedAt: Date.now(),
+  };
+  state.prompts.unshift(p);
+  state.selectedPromptId = p.id;
+  save();
+  renderFolders();
+  renderPromptList();
+  renderPromptEditor();
+  renderComposeList();
+  setTimeout(() => $('#pTitle')?.focus(), 0);
+}
+
+$('#btnNewPrompt').addEventListener('click', createPrompt);
+$('#btnNewPrompt2').addEventListener('click', createPrompt);
+$('#btnNewFolder').addEventListener('click', createFolder);
+$('#promptSearch').addEventListener('input', renderPromptList);
+
+/* =========================================================
+ * WORDBANK VIEW
+ * ========================================================= */
+function renderCategories() {
+  const list = $('#catList');
+  list.innerHTML = '';
+  const cats = Object.keys(state.wordbank).sort((a,b) => a.localeCompare(b, 'ko'));
+  if (cats.length === 0) {
+    list.innerHTML = `<div style="padding:20px; text-align:center; color: var(--text-mute); font-size:13px;">카테고리를 추가해보세요.</div>`;
+  }
+  for (const c of cats) {
+    const el = document.createElement('div');
+    el.className = 'list-item' + (c === state.selectedCat ? ' active' : '');
+    const count = (state.wordbank[c] || []).length;
+    el.innerHTML = `<div class="title">${escapeHtml(c)}</div><div class="meta"><span class="tag">${count}개</span></div>`;
+    el.addEventListener('click', () => { state.selectedCat = c; renderCategories(); renderWordbankMain(); });
+    list.appendChild(el);
+  }
+  if (!state.selectedCat || !state.wordbank[state.selectedCat]) {
+    state.selectedCat = cats[0] || null;
+  }
+  renderWordbankMain();
+}
+
+function renderWordbankMain() {
+  const root = $('#wbMain');
+  if (!state.selectedCat) {
+    root.innerHTML = `
+      <div class="empty"><div class="empty-card">
+        <h3>단어장</h3>
+        <p>카테고리별로 단어를 모아두면, 프롬프트의 <span class="kbd">{{카테고리명}}</span> 자리표시자에 무작위로 삽입됩니다.</p>
+        <p class="help" style="margin-top: 12px">예: "톤" 카테고리에 "친근한, 전문적인, 유머러스한"을 넣고, 프롬프트에 <span class="kbd">{{톤}}</span>이라고 쓰면 자동으로 채워집니다.</p>
+      </div></div>`;
+    return;
+  }
+  const c = state.selectedCat;
+  const words = state.wordbank[c] || [];
+  root.innerHTML = `
+    <div class="row" style="margin-bottom:12px;">
+      <input type="text" id="catRename" value="${escapeHtml(c)}" style="font-size:16px; font-weight:600; flex:1;" />
+      <button class="btn secondary tiny" id="btnRenameCat">이름 변경</button>
+      <button class="btn danger tiny" id="btnDeleteCat">카테고리 삭제</button>
+    </div>
+    <div class="row" style="margin-bottom:12px; align-items:flex-start;">
+      <textarea id="newWord" rows="2" placeholder="단어 입력 — 줄바꿈 또는 쉼표(,)로 여러 개 한번에&#10;붙여넣기 후 Ctrl+Enter 또는 + 추가 버튼 클릭" style="flex:1; font-family:inherit; resize:vertical; min-height:48px; line-height:1.5;"></textarea>
+      <button class="btn" id="btnAddWord">+ 추가</button>
+    </div>
+    <label style="font-size:12px; color: var(--text-dim); margin-bottom:6px; display:block;">단어 (${words.length}개)</label>
+    <div class="wb-words" id="wordList"></div>
+    <div class="help" style="margin-top:10px;">
+      이 카테고리 이름은 프롬프트에서 <span class="kbd">{{${escapeHtml(c)}}}</span> 형식으로 사용됩니다.
+    </div>
+  `;
+  const wl = $('#wordList');
+  if (words.length === 0) {
+    wl.innerHTML = `<div style="color: var(--text-mute); font-size:13px;">단어를 추가해보세요.</div>`;
+  } else {
+    for (let i = 0; i < words.length; i++) {
+      const w = words[i];
+      const chip = document.createElement('span');
+      chip.className = 'word-chip';
+      chip.innerHTML = `${escapeHtml(w)} <button title="삭제">×</button>`;
+      chip.querySelector('button').addEventListener('click', () => {
+        state.wordbank[c].splice(i, 1);
+        save();
+        renderCategories();
+      });
+      wl.appendChild(chip);
+    }
+  }
+  const addNow = () => {
+    const v = $('#newWord').value.trim();
+    if (!v) return;
+    // If newlines are present, split by newlines only (commas inside lines preserved — e.g. "Happiness (행복, 좋음)")
+    // Otherwise split by commas (single-line shortcut for typing several at once)
+    const parts = (v.includes('\n') ? v.split('\n') : v.split(','))
+      .map(x => x.trim())
+      .filter(Boolean);
+    if (parts.length === 0) return;
+    const before = (state.wordbank[c] || []).length;
+    state.wordbank[c] = [...new Set([...(state.wordbank[c] || []), ...parts])];
+    const added = state.wordbank[c].length - before;
+    $('#newWord').value = '';
+    save();
+    renderCategories();
+    if (parts.length > 1 || added !== parts.length) {
+      const dup = parts.length - added;
+      toast(dup > 0 ? `${added}개 추가 (중복 ${dup}개 제외)` : `${added}개 추가`);
+    }
+  };
+  $('#btnAddWord').addEventListener('click', addNow);
+  $('#newWord').addEventListener('keydown', e => {
+    // Ctrl+Enter (or Cmd+Enter on Mac) submits — plain Enter creates newline
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      addNow();
+    }
+  });
+  $('#btnRenameCat').addEventListener('click', () => {
+    const newName = $('#catRename').value.trim();
+    if (!newName || newName === c) return;
+    if (state.wordbank[newName]) { toast('이미 존재하는 카테고리입니다', true); return; }
+    state.wordbank[newName] = state.wordbank[c];
+    delete state.wordbank[c];
+    state.selectedCat = newName;
+    save();
+    renderCategories();
+    toast('이름이 변경되었습니다');
+  });
+  $('#btnDeleteCat').addEventListener('click', () => {
+    if (!confirm(`"${c}" 카테고리를 삭제하시겠습니까?`)) return;
+    delete state.wordbank[c];
+    state.selectedCat = null;
+    save();
+    renderCategories();
+    toast('삭제되었습니다');
+  });
+}
+
+$('#btnNewCat').addEventListener('click', () => {
+  const name = $('#newCatName').value.trim();
+  if (!name) return;
+  if (state.wordbank[name]) { toast('이미 존재합니다', true); return; }
+  state.wordbank[name] = [];
+  $('#newCatName').value = '';
+  state.selectedCat = name;
+  save();
+  renderCategories();
+});
+$('#newCatName').addEventListener('keydown', e => {
+  if (e.key === 'Enter') $('#btnNewCat').click();
+});
+
+/* =========================================================
+ * COMPOSE VIEW
+ * ========================================================= */
+function renderComposeList() {
+  // Build folder filter dropdown
+  const filter = $('#composeFolderFilter');
+  const allCount = state.prompts.length;
+  const noneCount = state.prompts.filter(p => !p.folder).length;
+  const folderOpts = [...state.folders].sort((a,b) => a.localeCompare(b, 'ko'))
+    .map(f => {
+      const c = state.prompts.filter(p => p.folder === f).length;
+      const ic = state.folderIcons[f] || '📁';
+      return `<option value="${escapeHtml(f)}">${ic} ${escapeHtml(f)} (${c})</option>`;
+    }).join('');
+  filter.innerHTML = `
+    <option value="__all__">📚 전체 폴더 (${allCount})</option>
+    <option value="__none__">📄 미분류 (${noneCount})</option>
+    ${folderOpts}
+  `;
+  // Validate selectedFolder still exists
+  const validValues = ['__all__', '__none__', ...state.folders];
+  if (!validValues.includes(state.composeFolder)) state.composeFolder = '__all__';
+  filter.value = state.composeFolder;
+
+  const q = ($('#composeSearch').value || '').toLowerCase().trim();
+  const list = $('#composeList');
+  list.innerHTML = '';
+
+  let items = state.prompts;
+  if (state.composeFolder === '__none__') items = items.filter(p => !p.folder);
+  else if (state.composeFolder !== '__all__') items = items.filter(p => p.folder === state.composeFolder);
+  items = items
+    .filter(p => !q || p.title.toLowerCase().includes(q) || p.body.toLowerCase().includes(q))
+    .sort((a,b) => b.updatedAt - a.updatedAt);
+
+  // Add "blank" option (only when no folder filter or "all")
+  if (state.composeFolder === '__all__') {
+    const blank = document.createElement('div');
+    blank.className = 'list-item' + (state.composePrompt === null ? ' active' : '');
+    blank.innerHTML = `<div class="title">📝 빈 템플릿으로 시작</div><div class="meta">자유 입력</div>`;
+    blank.addEventListener('click', () => loadIntoCompose(null));
+    list.appendChild(blank);
+  }
+
+  if (items.length === 0 && state.prompts.length === 0) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'padding:20px; text-align:center; color: var(--text-mute); font-size:13px;';
+    hint.textContent = '저장된 프롬프트가 없습니다.';
+    list.appendChild(hint);
+    return;
+  }
+  if (items.length === 0) {
+    const hint = document.createElement('div');
+    hint.style.cssText = 'padding:20px; text-align:center; color: var(--text-mute); font-size:13px;';
+    hint.textContent = q ? '결과 없음' : '이 폴더는 비어있습니다.';
+    list.appendChild(hint);
+    return;
+  }
+  for (const p of items) {
+    const el = document.createElement('div');
+    el.className = 'list-item' + (state.composePrompt === p.id ? ' active' : '');
+    const fIcon = p.folder ? (state.folderIcons[p.folder] || '📁') : '';
+    const folder = p.folder ? `<span class="tag cat">${fIcon} ${escapeHtml(p.folder)}</span>` : '';
+    el.innerHTML = `<div class="title">${escapeHtml(p.title || '제목 없음')}</div><div class="meta">${folder}</div>`;
+    el.addEventListener('click', () => loadIntoCompose(p.id));
+    list.appendChild(el);
+  }
+}
+
+function loadIntoCompose(promptId) {
+  state.composePrompt = promptId;
+  if (promptId === null) {
+    $('#composeTemplate').value = '';
+    $('#composeTitle').textContent = '새 템플릿';
+    state.composeMappings = {};
+  } else {
+    const p = state.prompts.find(x => x.id === promptId);
+    if (!p) return;
+    $('#composeTemplate').value = p.body;
+    $('#composeTitle').textContent = p.title;
+    state.composeMappings = { ...(p.mappings || {}) };
+  }
+  state.composeValues = {};
+  renderComposeList();
+  refreshCompose(true);
+}
+
+function refreshCompose(autoFill = false) {
+  const tpl = $('#composeTemplate').value;
+  const phs = extractPlaceholders(tpl);
+  $('#phCount').textContent = `placeholder ${phs.length}개`;
+
+  // Clean values for placeholders that no longer exist
+  for (const k of Object.keys(state.composeValues)) {
+    if (!phs.includes(k)) delete state.composeValues[k];
+  }
+  // Auto-fill empty placeholders from their mapped/matched word bank category
+  for (const ph of phs) {
+    const hasValue = state.composeValues[ph] != null && state.composeValues[ph] !== '';
+    if (!autoFill && hasValue) continue;
+    const cat = getPlaceholderCategory(ph);
+    if (cat && state.wordbank[cat]?.length) {
+      state.composeValues[ph] = pickRandom(state.wordbank[cat]);
+    }
+  }
+  renderPlaceholderList(phs);
+  updateOutput();
+  analyzeAndShow(tpl);
+}
+
+function renderPlaceholderList(phs) {
+  const root = $('#placeholderList');
+  if (phs.length === 0) {
+    root.innerHTML = `<div class="help">
+      자리표시자: <span class="kbd">{{이름}}</span> 또는 <span class="kbd">{A}</span> 형식.<br/>
+      각 자리표시자에 단어장 카테고리를 매핑하면 무작위로 채워집니다.<br/>
+      <small>예: <span class="kbd">{A}</span> → "톤" 카테고리, <span class="kbd">{B}</span> → "주제" 카테고리</small>
+    </div>`;
+    return;
+  }
+  root.innerHTML = '';
+  const categories = Object.keys(state.wordbank).sort((a,b) => a.localeCompare(b, 'ko'));
+
+  for (const ph of phs) {
+    const cat = getPlaceholderCategory(ph);
+    const userMapping = state.composeMappings[ph];
+    const val = state.composeValues[ph] || '';
+    const bank = cat ? (state.wordbank[cat] || []) : [];
+
+    const catOptions = [
+      `<option value="">— 직접 입력 —</option>`,
+      ...categories.map(c => {
+        // Selected if explicitly mapped, OR auto-matched (no explicit mapping AND name matches)
+        const isExplicit = userMapping === c;
+        const isAutoMatched = userMapping == null && c === ph;
+        const isSelected = isExplicit || isAutoMatched;
+        const label = isAutoMatched ? `${c} (이름 자동 일치)` : `${c} (${state.wordbank[c].length}개)`;
+        return `<option value="${escapeHtml(c)}" ${isSelected ? 'selected' : ''}>📚 ${escapeHtml(label)}</option>`;
+      })
+    ].join('');
+
+    const row = document.createElement('div');
+    row.className = 'placeholder-row';
+    row.innerHTML = `
+      <div>
+        <div class="ph-name">${ph.length <= 3 ? '{' + escapeHtml(ph) + '}' : '{{' + escapeHtml(ph) + '}}'}</div>
+        <select class="ph-cat-select" title="단어장 카테고리 매핑">${catOptions}</select>
+        <input type="text" class="ph-val-input" value="${escapeHtml(val)}" placeholder="${bank.length ? '🎲 단어장에서 자동' : '직접 입력'}" />
+      </div>
+      <button class="btn ghost tiny" data-act="reroll" ${bank.length === 0 ? 'disabled style="opacity:.4; cursor:not-allowed;"' : ''} title="이 자리만 다시 뽑기">🎲</button>
+      <button class="btn ghost tiny" data-act="clear" title="비우기">×</button>
+    `;
+
+    const select = row.querySelector('.ph-cat-select');
+    const input = row.querySelector('.ph-val-input');
+
+    select.addEventListener('change', () => {
+      const newCat = select.value;
+      if (newCat) {
+        state.composeMappings[ph] = newCat;
+        if (state.wordbank[newCat]?.length) {
+          state.composeValues[ph] = pickRandom(state.wordbank[newCat]);
+        }
+      } else {
+        // User chose "직접 입력" — explicitly clear mapping
+        state.composeMappings[ph] = '';
+      }
+      // Persist mapping to loaded prompt (auto-save metadata)
+      if (state.composePrompt) {
+        const p = state.prompts.find(x => x.id === state.composePrompt);
+        if (p) {
+          p.mappings = { ...state.composeMappings };
+          // Strip empty entries to keep storage tidy
+          for (const k of Object.keys(p.mappings)) {
+            if (p.mappings[k] === '') delete p.mappings[k];
+          }
+          save();
+        }
+      }
+      refreshCompose(false);
+    });
+
+    input.addEventListener('input', () => {
+      state.composeValues[ph] = input.value;
+      updateOutput();
+    });
+
+    row.querySelector('[data-act="reroll"]').addEventListener('click', () => {
+      const c = getPlaceholderCategory(ph);
+      const words = c ? (state.wordbank[c] || []) : [];
+      if (!words.length) return;
+      state.composeValues[ph] = pickRandom(words);
+      input.value = state.composeValues[ph];
+      updateOutput();
+    });
+
+    row.querySelector('[data-act="clear"]').addEventListener('click', () => {
+      state.composeValues[ph] = '';
+      input.value = '';
+      updateOutput();
+    });
+
+    root.appendChild(row);
+  }
+}
+
+function updateOutput() {
+  const tpl = $('#composeTemplate').value;
+  const out = fillTemplate(tpl, state.composeValues);
+  $('#composeOutput').value = out;
+  $('#outputStats').textContent = `${out.length}자`;
+}
+
+$('#composeTemplate').addEventListener('input', () => {
+  refreshCompose(false);
+});
+$('#composeSearch').addEventListener('input', renderComposeList);
+$('#composeFolderFilter').addEventListener('change', () => {
+  state.composeFolder = $('#composeFolderFilter').value;
+  renderComposeList();
+});
+const PREVIEW_LIMIT = 20; // N > this → clipboard-only mode
+
+function getGenCount() {
+  return Math.max(1, Math.min(100, parseInt($('#genCount').value) || 1));
+}
+
+$('#btnReroll').addEventListener('click', async () => {
+  const tpl = $('#composeTemplate').value;
+  const phs = extractPlaceholders(tpl);
+  if (!tpl.trim()) { toast('템플릿을 먼저 입력해주세요', true); return; }
+  const n = getGenCount();
+
+  if (n === 1) {
+    // Single variation: update placeholder values UI
+    for (const ph of phs) {
+      const cat = getPlaceholderCategory(ph);
+      if (cat && state.wordbank[cat]?.length) {
+        state.composeValues[ph] = pickRandom(state.wordbank[cat]);
+      }
+    }
+    renderPlaceholderList(phs);
+    updateOutput();
+    toast('다시 뽑았습니다');
+    return;
+  }
+
+  // N variations: generate N independent fills
+  const variations = [];
+  for (let i = 0; i < n; i++) {
+    const vals = {};
+    for (const ph of phs) {
+      const cat = getPlaceholderCategory(ph);
+      if (cat && state.wordbank[cat]?.length) {
+        vals[ph] = pickRandom(state.wordbank[cat]);
+      } else {
+        vals[ph] = state.composeValues[ph] || '';
+      }
+    }
+    variations.push(fillTemplate(tpl, vals));
+  }
+  const out = variations.map((v, i) => `━━━━━━━━━━━━━━━ 변형 ${i + 1} ━━━━━━━━━━━━━━━\n${v}`).join('\n\n');
+
+  if (n <= PREVIEW_LIMIT) {
+    // Show in output area
+    $('#composeOutput').value = out;
+    $('#outputStats').textContent = `${n}개 변형 / ${out.length.toLocaleString()}자`;
+    toast(`${n}개 변형을 생성했습니다`);
+  } else {
+    // Clipboard-only mode: auto-copy, show summary in output area
+    try {
+      await navigator.clipboard.writeText(out);
+      const avg = Math.round(out.length / n);
+      $('#composeOutput').value =
+        `✅ ${n}개 변형을 클립보드에 복사했습니다.\n\n` +
+        `메모장이나 다른 편집기를 열고 Ctrl+V (또는 Cmd+V)로 붙여넣으세요.\n\n` +
+        `─────────────\n` +
+        `총 ${out.length.toLocaleString()}자\n` +
+        `평균 ${avg.toLocaleString()}자/변형\n` +
+        `(21개 이상은 결과창이 너무 길어져 클립보드로만 전달됩니다)`;
+      $('#outputStats').textContent = `${n}개 → 📋 클립보드`;
+      toast(`${n}개 변형을 클립보드에 복사했습니다 (Ctrl+V로 붙여넣기)`);
+    } catch (e) {
+      // Clipboard API may fail (permissions, http context, etc.) — fall back to output area
+      $('#composeOutput').value = out;
+      $('#outputStats').textContent = `${n}개 변형 / ${out.length.toLocaleString()}자`;
+      toast('클립보드 복사 실패 — 결과창에서 직접 복사해주세요', true);
+    }
+  }
+});
+
+$('#genCount').addEventListener('change', () => {
+  // Clamp to valid range
+  const n = getGenCount();
+  $('#genCount').value = n;
+  state.generateCount = n;
+});
+$('#btnClearVals').addEventListener('click', () => {
+  state.composeValues = {};
+  refreshCompose(false);
+});
+$('#btnCopyOutput').addEventListener('click', async () => {
+  const t = $('#composeOutput').value;
+  if (!t) return;
+  await navigator.clipboard.writeText(t);
+  toast('결과가 복사되었습니다');
+});
+
+/* =========================================================
+ * REAL-TIME PROMPT ANALYSIS (rule-based)
+ * ========================================================= */
+function analyzePrompt(text) {
+  const t = (text || '').trim();
+  const len = t.length;
+  const words = t.split(/\s+/).filter(Boolean).length;
+  const phs = extractPlaceholders(text);
+  const lines = t.split('\n').length;
+
+  const checks = [];
+  let score = 0;
+
+  // 1. Length
+  if (len === 0) {
+    checks.push({ kind: 'bad', label: '비어있음', desc: '프롬프트를 입력해주세요.' });
+  } else if (len < 30) {
+    checks.push({ kind: 'warn', label: '너무 짧음', desc: '맥락과 구체성을 더하면 더 나은 결과를 얻을 수 있습니다.' });
+    score += 5;
+  } else if (len < 200) {
+    checks.push({ kind: 'good', label: '적정 길이', desc: '간결하고 명확한 길이입니다.' });
+    score += 20;
+  } else if (len < 1500) {
+    checks.push({ kind: 'good', label: '풍부한 맥락', desc: '충분한 맥락을 담고 있습니다.' });
+    score += 25;
+  } else {
+    checks.push({ kind: 'warn', label: '매우 김', desc: '핵심을 정리해 더 짧게 만들 수 있는지 검토해보세요.' });
+    score += 15;
+  }
+
+  // 2. Role/Persona
+  const hasRole = /당신은|너는|역할|행동해|act as|you are|페르소나|입장에서/i.test(t);
+  if (hasRole) {
+    checks.push({ kind: 'good', label: '역할 정의', desc: '모델에게 명확한 역할이 주어졌습니다.' });
+    score += 15;
+  } else if (len > 50) {
+    checks.push({ kind: 'warn', label: '역할 부재', desc: '"당신은 …의 전문가입니다" 같은 역할 지정이 도움됩니다.' });
+  }
+
+  // 3. Output format
+  const hasFormat = /형식|format|json|마크다운|markdown|목록|글머리|bullet|표|table|문단|문장 \d|줄바꿈|글자수|자 이내|단어|words?/i.test(t);
+  if (hasFormat) {
+    checks.push({ kind: 'good', label: '출력 형식 명시', desc: '결과 형식이 지정되어 있습니다.' });
+    score += 15;
+  } else if (len > 80) {
+    checks.push({ kind: 'warn', label: '출력 형식 미지정', desc: 'JSON, 목록, 마크다운, 분량 등을 지정하면 일관된 결과가 나옵니다.' });
+  }
+
+  // 4. Examples / few-shot
+  const hasExample = /예시|예:|예를|example|샘플|sample|<example|input:|output:|입력:|출력:/i.test(t);
+  if (hasExample) {
+    checks.push({ kind: 'good', label: '예시 포함', desc: '예시는 결과 품질을 크게 끌어올립니다.' });
+    score += 12;
+  }
+
+  // 5. Constraints / negative instructions
+  const hasConstraint = /하지 마세요|하지 말|금지|반드시|꼭|절대|do not|don't|must|never|always|제외|이내/i.test(t);
+  if (hasConstraint) {
+    checks.push({ kind: 'good', label: '제약 명시', desc: '명확한 제약이 있어 모델이 경계를 알 수 있습니다.' });
+    score += 8;
+  }
+
+  // 6. Audience / context
+  const hasAudience = /대상|독자|학생|초보|전문가|사용자|audience|reader|아이/i.test(t);
+  if (hasAudience) {
+    checks.push({ kind: 'good', label: '대상 독자 명시', desc: '대상이 명확해 톤과 난이도 조절이 쉽습니다.' });
+    score += 8;
+  }
+
+  // 7. Placeholders
+  if (phs.length > 0) {
+    checks.push({ kind: 'good', label: `자리표시자 ${phs.length}개`, desc: '재사용 가능한 템플릿입니다.' });
+    score += 8;
+  }
+
+  // 8. Ambiguous words
+  const vagueWords = ['좋은', '잘', '대충', '적당히', '여러 가지', 'good', 'nice', 'better', 'some', 'few'];
+  const found = vagueWords.filter(w => t.toLowerCase().includes(w.toLowerCase()));
+  if (found.length >= 2) {
+    checks.push({ kind: 'warn', label: '모호한 표현', desc: `"${found.slice(0,3).join('", "')}" 등 모호한 단어를 구체화해보세요.` });
+  }
+
+  // 9. Question vs instruction
+  const hasInstr = /해줘|해주세요|작성|만들|생성|요약|분석|번역|설명|평가|추천|제안|listing|write|create|generate|analyze|translate|explain|please/i.test(t);
+  if (!hasInstr && len > 20) {
+    checks.push({ kind: 'warn', label: '명확한 지시어 부재', desc: '"…해주세요", "…를 작성해줘" 같은 명확한 동사를 추가해보세요.' });
+  } else if (hasInstr) {
+    score += 5;
+  }
+
+  // 10. Structure (multi-line / sections)
+  if (lines >= 4) {
+    checks.push({ kind: 'good', label: '구조화된 형식', desc: '여러 줄로 구분되어 가독성이 좋습니다.' });
+    score += 7;
+  }
+
+  score = Math.min(100, Math.max(0, score));
+  return { score, checks, len, words, phs };
+}
+
+function analyzeAndShow(text) {
+  const r = analyzePrompt(text);
+  $('#scoreFill').style.width = r.score + '%';
+  $('#scoreText').textContent = r.len === 0 ? '—' : `${r.score} / 100`;
+
+  const sl = $('#suggestionList');
+  sl.innerHTML = '';
+  if (r.len === 0) {
+    sl.innerHTML = `<div class="suggestion"><div class="desc">프롬프트를 입력하면 분석이 시작됩니다.</div></div>`;
+    return;
+  }
+  // Sort: bad → warn → good
+  const order = { bad: 0, warn: 1, good: 2 };
+  r.checks.sort((a,b) => (order[a.kind] - order[b.kind]));
+  for (const c of r.checks) {
+    const div = document.createElement('div');
+    div.className = 'suggestion ' + c.kind;
+    div.innerHTML = `<div class="label">${escapeHtml(c.label)}</div><div class="desc">${escapeHtml(c.desc)}</div>`;
+    sl.appendChild(div);
+  }
+}
+
+/* Debounced input → analyze */
+let _ai;
+$('#composeTemplate').addEventListener('input', () => {
+  clearTimeout(_ai);
+  _ai = setTimeout(() => analyzeAndShow($('#composeTemplate').value), 250);
+});
+
+/* =========================================================
+ * AI IMPROVEMENT (Claude API)
+ * ========================================================= */
+$('#btnAiImprove').addEventListener('click', async () => {
+  const tpl = $('#composeTemplate').value.trim();
+  if (!tpl) { toast('템플릿을 먼저 입력해주세요', true); return; }
+  if (!settings.apiKey) {
+    toast('설정에서 API 키를 입력해주세요', true);
+    openSettings();
+    return;
+  }
+  const status = $('#aiStatus');
+  const result = $('#aiResult');
+  status.textContent = '요청 중…';
+  status.className = 'pill warn';
+  result.textContent = '';
+  $('#btnAiImprove').disabled = true;
+
+  const sys = `당신은 프롬프트 엔지니어링 전문가입니다. 사용자가 작성한 프롬프트를 검토하고 개선안을 제시합니다.
+
+다음 형식으로 응답하세요:
+
+## 개선된 프롬프트
+(개선된 전체 프롬프트를 그대로 복사할 수 있는 형태로 작성. 자리표시자({{이름}})가 있다면 보존하세요.)
+
+## 변경 사항
+- (구체적으로 무엇을 어떻게 바꿨는지 3-5개 항목)
+
+## 추가 제안
+- (선택적으로 더 시도해볼 만한 것)
+
+간결하고 실용적으로 답변하세요. 한국어로 응답하세요.`;
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': settings.apiKey,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: settings.model,
+        max_tokens: 2048,
+        system: sys,
+        messages: [{ role: 'user', content: `다음 프롬프트를 검토하고 개선해주세요:\n\n---\n${tpl}\n---` }],
+      }),
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(`API ${res.status}: ${err.slice(0, 200)}`);
+    }
+    const data = await res.json();
+    const text = (data.content || []).map(c => c.text || '').join('').trim();
+    result.textContent = text;
+    status.textContent = '완료';
+    status.className = 'pill good';
+  } catch (e) {
+    result.textContent = '오류: ' + e.message;
+    status.textContent = '실패';
+    status.className = 'pill bad';
+  } finally {
+    $('#btnAiImprove').disabled = false;
+  }
+});
+
+/* =========================================================
+ * SETTINGS / IMPORT / EXPORT
+ * ========================================================= */
+function openSettings() {
+  $('#apiKeyInput').value = settings.apiKey || '';
+  $('#modelSelect').value = settings.model;
+  $('#settingsModal').classList.add('open');
+}
+$('#btnSettings').addEventListener('click', openSettings);
+$('#btnSettingsClose').addEventListener('click', () => $('#settingsModal').classList.remove('open'));
+$('#btnSettingsSave').addEventListener('click', () => {
+  settings.apiKey = $('#apiKeyInput').value.trim();
+  settings.model = $('#modelSelect').value;
+  saveSettings();
+  $('#settingsModal').classList.remove('open');
+  toast('설정이 저장되었습니다');
+});
+
+$('#btnExport').addEventListener('click', () => {
+  const data = JSON.stringify({
+    version: 2,
+    exportedAt: new Date().toISOString(),
+    prompts: state.prompts,
+    wordbank: state.wordbank,
+    folders: state.folders,
+    folderIcons: state.folderIcons,
+  }, null, 2);
+  const blob = new Blob([data], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `prompt-studio-${new Date().toISOString().slice(0,10)}.json`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+  toast('내보내기 완료');
+});
+
+$('#btnImport').addEventListener('click', () => $('#importFile').click());
+
+// Process a single file. In multi-file mode (isMulti=true), skip prompts/confirms
+// and auto-name categories from filename. Returns { type, name, added, error }.
+async function importOneFile(file, isMulti) {
+  try {
+    const text = await file.text();
+    const data = JSON.parse(text);
+
+    // Format A: simple string array
+    if (Array.isArray(data) && data.every(x => typeof x === 'string')) {
+      let catName;
+      const defaultName = file.name.replace(/\.json$/i, '').trim() || '단어 목록';
+      if (isMulti) {
+        catName = defaultName;
+      } else {
+        catName = prompt(
+          `📋 "${file.name}" — 단어 ${data.length}개 발견.\n어떤 단어장 카테고리로 가져올까요?\n(이미 있는 이름이면 단어가 추가됩니다)`,
+          defaultName
+        );
+        if (!catName || !catName.trim()) return { type: 'cancelled', file: file.name };
+      }
+      const n = catName.trim();
+      const existing = state.wordbank[n] || [];
+      const combined = [...new Set([...existing, ...data])];
+      const added = combined.length - existing.length;
+      state.wordbank[n] = combined;
+      return { type: 'words', file: file.name, category: n, added, total: data.length };
+    }
+
+    // Format B: category object
+    if (data && typeof data === 'object' && !Array.isArray(data) &&
+        !data.prompts && !data.wordbank &&
+        Object.keys(data).length > 0 &&
+        Object.values(data).every(v => Array.isArray(v) && v.every(x => typeof x === 'string'))) {
+      const cats = Object.keys(data);
+      if (!isMulti) {
+        if (!confirm(`📋 "${file.name}" — 단어 카테고리 ${cats.length}개 발견:\n${cats.slice(0,5).map(c => `· ${c} (${data[c].length})`).join('\n')}${cats.length > 5 ? '\n…' : ''}\n\n현재 단어장에 추가합니다.`)) {
+          return { type: 'cancelled', file: file.name };
+        }
+      }
+      let totalAdded = 0;
+      for (const c of cats) {
+        const existing = state.wordbank[c] || [];
+        const combined = [...new Set([...existing, ...data[c]])];
+        totalAdded += combined.length - existing.length;
+        state.wordbank[c] = combined;
+      }
+      return { type: 'cats', file: file.name, cats: cats.length, added: totalAdded };
+    }
+
+    // Format C: full backup
+    if (!Array.isArray(data.prompts) || typeof data.wordbank !== 'object') {
+      throw new Error('지원하지 않는 형식 (전체 백업 / 단어 배열 / 카테고리 객체만 가능)');
+    }
+    if (!isMulti) {
+      const folderCount = (Array.isArray(data.folders) ? data.folders.length : 0)
+        || new Set(data.prompts.map(p => p.folder || p.category).filter(Boolean)).size;
+      if (!confirm(`"${file.name}" — ${data.prompts.length}개 프롬프트, ${folderCount}개 폴더, ${Object.keys(data.wordbank).length}개 단어 카테고리를 가져옵니다.\n현재 데이터에 추가합니다.`)) {
+        return { type: 'cancelled', file: file.name };
+      }
+    }
+    const existingIds = new Set(state.prompts.map(p => p.id));
+    for (const p of data.prompts) {
+      if (p.category != null && p.folder == null) p.folder = p.category;
+      delete p.category;
+      if (existingIds.has(p.id)) p.id = uid();
+      state.prompts.push(p);
+    }
+    const importedFolders = Array.isArray(data.folders) ? data.folders : [];
+    const promptFolders = data.prompts.map(p => p.folder).filter(Boolean);
+    state.folders = [...new Set([...state.folders, ...importedFolders, ...promptFolders])];
+    if (data.folderIcons && typeof data.folderIcons === 'object') {
+      state.folderIcons = { ...state.folderIcons, ...data.folderIcons };
+    }
+    let wbAdded = 0;
+    for (const k of Object.keys(data.wordbank)) {
+      const existing = state.wordbank[k] || [];
+      const combined = [...new Set([...existing, ...data.wordbank[k]])];
+      wbAdded += combined.length - existing.length;
+      state.wordbank[k] = combined;
+    }
+    return {
+      type: 'backup', file: file.name,
+      prompts: data.prompts.length,
+      cats: Object.keys(data.wordbank).length,
+      wbAdded,
+    };
+  } catch (err) {
+    return { type: 'error', file: file.name, error: err.message };
+  }
+}
+
+$('#importFile').addEventListener('change', async (e) => {
+  const files = [...e.target.files];
+  if (!files.length) return;
+  const isMulti = files.length > 1;
+
+  // Optional: confirm before batch processing
+  if (isMulti) {
+    if (!confirm(`📦 ${files.length}개 파일을 일괄 가져옵니다.\n\n· 단어 배열 → 파일명을 카테고리 이름으로 사용\n· 카테고리 객체 → 그대로 병합\n· 전체 백업 → 자동 병합\n\n진행할까요?`)) {
+      e.target.value = '';
+      return;
+    }
+  }
+
+  const results = [];
+  for (const file of files) {
+    results.push(await importOneFile(file, isMulti));
+  }
+
+  save();
+  renderFolders();
+  renderPromptList();
+  renderCategories();
+  renderComposeList();
+
+  // Summarize results
+  const ok = results.filter(r => r.type !== 'error' && r.type !== 'cancelled');
+  const errs = results.filter(r => r.type === 'error');
+  const cancelled = results.filter(r => r.type === 'cancelled');
+
+  if (isMulti) {
+    let totalWords = 0, totalCats = 0, totalPrompts = 0;
+    const seenCats = new Set();
+    for (const r of ok) {
+      if (r.type === 'words') { totalWords += r.added; seenCats.add(r.category); }
+      if (r.type === 'cats') { totalWords += r.added; totalCats += r.cats; }
+      if (r.type === 'backup') { totalWords += r.wbAdded; totalCats += r.cats; totalPrompts += r.prompts; }
+    }
+    totalCats += seenCats.size;
+    let msg = `✅ ${ok.length}/${files.length}개 완료`;
+    if (totalPrompts) msg += ` · 프롬프트 ${totalPrompts}`;
+    if (totalCats) msg += ` · 카테고리 ${totalCats}`;
+    if (totalWords) msg += ` · 단어 ${totalWords}`;
+    if (errs.length) msg += ` · ❌ 오류 ${errs.length}`;
+    toast(msg, errs.length > 0);
+    if (errs.length) {
+      console.warn('Import errors:', errs);
+      alert(`다음 파일에서 오류가 발생했습니다:\n\n${errs.map(r => `• ${r.file}: ${r.error}`).join('\n')}`);
+    }
+  } else {
+    const r = results[0];
+    if (r.type === 'error') toast('가져오기 실패: ' + r.error, true);
+    else if (r.type === 'cancelled') {} // silent
+    else if (r.type === 'words') toast(`"${r.category}"에 ${r.added}개 추가 (중복 ${r.total - r.added}개 제외)`);
+    else if (r.type === 'cats') toast(`${r.cats}개 카테고리, ${r.added}개 단어 추가`);
+    else if (r.type === 'backup') toast('가져오기 완료');
+  }
+
+  e.target.value = '';
+});
+
+$('#btnReset').addEventListener('click', () => {
+  if (!confirm('정말 모든 데이터를 삭제하시겠습니까? 이 동작은 되돌릴 수 없습니다.')) return;
+  state.prompts = [];
+  state.wordbank = {};
+  state.folders = [];
+  state.folderIcons = {};
+  state.selectedPromptId = null;
+  state.selectedCat = null;
+  state.selectedFolder = '__all__';
+  state.composeFolder = '__all__';
+  state.composePrompt = null;
+  state.composeValues = {};
+  save();
+  renderFolders();
+  renderPromptList();
+  renderPromptEditor();
+  renderCategories();
+  renderComposeList();
+  $('#settingsModal').classList.remove('open');
+  toast('초기화되었습니다');
+});
+
+$('#btnSeed').addEventListener('click', () => {
+  if (state.prompts.length || Object.keys(state.wordbank).length) {
+    if (!confirm('기존 데이터에 샘플을 추가합니다. 계속하시겠습니까?')) return;
+  }
+  // Sample wordbank
+  const sample = {
+    '톤': ['친근한', '전문적인', '유머러스한', '간결한', '학술적인', '시적인'],
+    '주제': ['기후 변화', '생산성', '인공지능', '여행', '요리', '독서 습관'],
+    '길이': ['한 문단', '세 문장', '500자 이내', '글머리 5개'],
+    '대상': ['초등학생', '대학생', '직장인', '프로그래머 입문자', '비즈니스 임원'],
+  };
+  for (const k of Object.keys(sample)) {
+    state.wordbank[k] = [...new Set([...(state.wordbank[k] || []), ...sample[k]])];
+  }
+  // Ensure sample folders exist
+  for (const f of ['글쓰기', '코딩', '업무']) {
+    if (!state.folders.includes(f)) state.folders.push(f);
+  }
+  // Sample prompts
+  const samples = [
+    {
+      title: '블로그 글 초안 생성',
+      folder: '글쓰기',
+      tags: ['블로그', '한국어'],
+      body: `당신은 노련한 한국어 블로그 작가입니다.
+
+다음 주제로 블로그 글을 작성해주세요.
+- 주제: {{주제}}
+- 대상 독자: {{대상}}
+- 톤: {{톤}}
+- 분량: {{길이}}
+
+요구사항:
+1. 도입부에서 독자의 관심을 끄는 한 문장으로 시작하세요.
+2. 핵심 내용을 3개의 소제목으로 구분하세요.
+3. 마무리에서 독자가 바로 시도할 수 있는 행동을 한 가지 제안하세요.
+
+마크다운 형식으로 작성해주세요.`,
+    },
+    {
+      title: '코드 리뷰 도우미',
+      folder: '코딩',
+      tags: ['리뷰', '한국어'],
+      body: `당신은 시니어 소프트웨어 엔지니어이며, 코드 리뷰를 진행합니다.
+
+다음 코드를 리뷰해주세요:
+
+\`\`\`
+[코드 붙여넣기]
+\`\`\`
+
+다음 항목별로 평가하고, 구체적인 개선안을 한국어로 제시하세요:
+1. **정확성** — 버그나 엣지 케이스 누락
+2. **가독성** — 변수명, 구조, 주석
+3. **성능** — 시간/공간 복잡도, 불필요한 작업
+4. **보안** — 입력 검증, 인젝션, 민감정보
+
+각 항목에서 문제가 없으면 "문제 없음"이라고 명시하세요. 칭찬과 비판의 균형을 유지하세요.`,
+    },
+    {
+      title: '회의록 요약',
+      folder: '업무',
+      tags: ['요약'],
+      body: `다음 회의록을 {{톤}} 톤으로 요약해주세요.
+
+회의록:
+[붙여넣기]
+
+다음 형식으로 출력하세요:
+
+## 핵심 결론 (3개 이내)
+- ...
+
+## 결정사항
+- ...
+
+## 액션 아이템
+- 담당자 — 작업 — 기한
+
+## 다음 미팅에서 확인할 것
+- ...
+
+가장 중요한 정보부터 위에 배치하세요.`,
+    },
+  ];
+  for (const s of samples) {
+    state.prompts.unshift({ id: uid(), updatedAt: Date.now(), ...s });
+  }
+  save();
+  renderFolders();
+  renderPromptList();
+  renderCategories();
+  renderComposeList();
+  $('#settingsModal').classList.remove('open');
+  toast('샘플 데이터를 추가했습니다');
+});
+
+/* =========================================================
+ * INIT
+ * ========================================================= */
+load();
+renderFolders();
+renderPromptList();
+renderCategories();
+renderComposeList();
+refreshCompose(false);
+
+// Keyboard shortcuts
+document.addEventListener('keydown', (e) => {
+  // Esc closes modal
+  if (e.key === 'Escape') $('#settingsModal').classList.remove('open');
+  // Cmd/Ctrl+Enter on AI button
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
+    if ($('#view-compose').classList.contains('active')) {
+      $('#btnAiImprove').click();
+    }
+  }
+});
+</script>
+</body>
+</html>
