@@ -612,8 +612,45 @@
         <option value="claude-opus-4-7">Claude Opus 4.7 (최고 품질)</option>
       </select>
     </div>
-    <div class="field">
-      <label>전체 데이터</label>
+
+    <div class="modal-section">
+      <h4>🔄 자동 동기화 (GitHub Gist) <span id="syncStatus" class="sync-status">미설정</span></h4>
+      <div class="field">
+        <label>GitHub Personal Access Token</label>
+        <input type="password" id="syncTokenInput" placeholder="ghp_... 또는 github_pat_..." style="width:100%" />
+        <div class="help">
+          <a href="https://github.com/settings/tokens?type=beta" target="_blank" style="color:var(--accent)">github.com/settings/tokens</a>에서 발급:
+          <strong>"Tokens (classic)"</strong> → "Generate new token" → <strong>scope는 <code>gist</code>만</strong> 체크 → 생성 후 토큰을 여기에 붙여넣기.
+          토큰은 이 브라우저의 localStorage에만 저장됩니다.
+        </div>
+      </div>
+      <div class="field">
+        <label>Gist ID <span style="color:var(--text-mute); font-weight:normal;">(첫 동기화 시 자동 생성됨)</span></label>
+        <div style="display:flex; gap:6px;">
+          <input type="text" id="syncGistInput" placeholder="(자동 생성)" style="flex:1; font-family:ui-monospace,monospace; font-size:12px;" />
+          <button class="btn ghost tiny" id="btnCopyGistId" title="복사">📋</button>
+        </div>
+        <div class="help">
+          다른 기기에서 같은 데이터를 쓰려면 이 ID를 그 기기의 설정에 붙여넣으세요.
+        </div>
+      </div>
+      <div class="field">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+          <input type="checkbox" id="syncAutoToggle" style="width:auto;" />
+          <span>자동 동기화 활성화 (저장 시 자동 업로드 / 로드 시 자동 다운로드)</span>
+        </label>
+      </div>
+      <div class="row">
+        <button class="btn secondary tiny" id="btnSyncTest">연결 테스트</button>
+        <button class="btn secondary tiny" id="btnSyncPull">⬇ 가져오기</button>
+        <button class="btn secondary tiny" id="btnSyncPush">⬆ 보내기</button>
+        <button class="btn tiny" id="btnSyncNow">🔄 지금 동기화</button>
+      </div>
+      <div class="help" id="syncInfo" style="margin-top:8px;">아직 동기화하지 않음</div>
+    </div>
+
+    <div class="modal-section">
+      <h4>전체 데이터</h4>
       <div class="row">
         <button class="btn ghost tiny" id="btnSeed">샘플 데이터 불러오기</button>
         <button class="btn danger tiny" id="btnReset">전체 초기화</button>
@@ -651,21 +688,34 @@ const state = {
   composeValues: {},      // {placeholderName: currentValue}
   composeMappings: {},    // {placeholderName: categoryName} — overrides name-matching
   generateCount: 1,       // number of variations to generate at once
+  lastModified: 0,        // ms — last time data changed (for sync conflict resolution)
+  _suppressAutoPush: false, // set true while applying pulled data to avoid push loop
 };
 
 const settings = {
   apiKey: '',
   model: 'claude-haiku-4-5-20251001',
+  // Sync (GitHub Gist)
+  syncToken: '',
+  syncGistId: '',
+  autoSync: false,
+  lastSyncAt: 0,    // ms — when this device last successfully synced
 };
 
 /* ---------- Persistence ---------- */
 function save() {
+  state.lastModified = Date.now();
   localStorage.setItem(STORE_KEY, JSON.stringify({
     prompts: state.prompts,
     wordbank: state.wordbank,
     folders: state.folders,
     folderIcons: state.folderIcons,
+    lastModified: state.lastModified,
   }));
+  // Schedule auto-push if enabled and configured
+  if (!state._suppressAutoPush && settings.autoSync && settings.syncToken && settings.syncGistId) {
+    scheduleAutoPush();
+  }
 }
 function load() {
   try {
@@ -676,6 +726,7 @@ function load() {
       state.wordbank = d.wordbank || {};
       state.folders = Array.isArray(d.folders) ? d.folders : [];
       state.folderIcons = (d.folderIcons && typeof d.folderIcons === 'object') ? d.folderIcons : {};
+      state.lastModified = d.lastModified || 0;
       // Migration: category → folder
       let migrated = false;
       for (const p of state.prompts) {
@@ -1811,11 +1862,240 @@ $('#btnAiImprove').addEventListener('click', async () => {
 });
 
 /* =========================================================
+ * GIST SYNC
+ * ========================================================= */
+const SYNC_FILENAME = 'prompt-studio-data.json';
+
+function setSyncStatus(text, kind) {
+  const el = $('#syncStatus');
+  if (!el) return;
+  el.className = 'sync-status' + (kind ? ' ' + kind : '');
+  el.innerHTML = kind === 'busy' ? `<span class="sync-spin"></span> ${text}` : text;
+}
+
+function updateSyncInfo() {
+  const el = $('#syncInfo');
+  if (!el) return;
+  if (!settings.lastSyncAt) {
+    el.textContent = '아직 동기화하지 않음';
+  } else {
+    const ago = humanTimeAgo(settings.lastSyncAt);
+    el.textContent = `마지막 동기화: ${ago} (${new Date(settings.lastSyncAt).toLocaleString('ko-KR')})`;
+  }
+}
+
+function humanTimeAgo(t) {
+  const s = Math.floor((Date.now() - t) / 1000);
+  if (s < 5) return '방금 전';
+  if (s < 60) return `${s}초 전`;
+  if (s < 3600) return `${Math.floor(s/60)}분 전`;
+  if (s < 86400) return `${Math.floor(s/3600)}시간 전`;
+  return `${Math.floor(s/86400)}일 전`;
+}
+
+async function gistApi(method, path, body) {
+  if (!settings.syncToken) throw new Error('GitHub 토큰이 없습니다');
+  const headers = {
+    'Authorization': `Bearer ${settings.syncToken}`,
+    'Accept': 'application/vnd.github+json',
+    'X-GitHub-Api-Version': '2022-11-28',
+  };
+  const init = { method, headers };
+  if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    init.body = JSON.stringify(body);
+  }
+  const res = await fetch(`https://api.github.com/${path}`, init);
+  if (!res.ok) {
+    const txt = await res.text();
+    throw new Error(`GitHub API ${res.status}: ${txt.slice(0, 200)}`);
+  }
+  return res.status === 204 ? null : res.json();
+}
+
+function buildSyncPayload() {
+  return {
+    version: 2,
+    syncedAt: new Date().toISOString(),
+    lastModified: state.lastModified || Date.now(),
+    prompts: state.prompts,
+    wordbank: state.wordbank,
+    folders: state.folders,
+    folderIcons: state.folderIcons,
+  };
+}
+
+async function syncPush() {
+  setSyncStatus('업로드 중', 'busy');
+  const payload = buildSyncPayload();
+  const content = JSON.stringify(payload, null, 2);
+  try {
+    if (!settings.syncGistId) {
+      // Create new private gist
+      const gist = await gistApi('POST', 'gists', {
+        description: 'Prompt Studio Sync — auto-generated',
+        public: false,
+        files: { [SYNC_FILENAME]: { content } },
+      });
+      settings.syncGistId = gist.id;
+      const gistInput = $('#syncGistInput');
+      if (gistInput) gistInput.value = gist.id;
+    } else {
+      await gistApi('PATCH', `gists/${settings.syncGistId}`, {
+        files: { [SYNC_FILENAME]: { content } },
+      });
+    }
+    settings.lastSyncAt = Date.now();
+    saveSettings();
+    setSyncStatus('동기화됨', 'ok');
+    updateSyncInfo();
+    return true;
+  } catch (e) {
+    setSyncStatus('실패', 'bad');
+    throw e;
+  }
+}
+
+async function syncPull() {
+  if (!settings.syncGistId) throw new Error('Gist ID가 없습니다 — 먼저 "보내기"로 새 Gist를 만들거나 다른 기기의 Gist ID를 입력하세요');
+  setSyncStatus('다운로드 중', 'busy');
+  try {
+    const gist = await gistApi('GET', `gists/${settings.syncGistId}`);
+    const file = gist.files && gist.files[SYNC_FILENAME];
+    if (!file) throw new Error(`Gist에 ${SYNC_FILENAME} 파일이 없습니다`);
+    let content = file.content;
+    if (file.truncated && file.raw_url) {
+      content = await fetch(file.raw_url).then(r => r.text());
+    }
+    const data = JSON.parse(content);
+    if (!Array.isArray(data.prompts) || typeof data.wordbank !== 'object') {
+      throw new Error('Gist 데이터 형식이 올바르지 않습니다');
+    }
+    setSyncStatus('동기화됨', 'ok');
+    return data;
+  } catch (e) {
+    setSyncStatus('실패', 'bad');
+    throw e;
+  }
+}
+
+function applyPulledData(data) {
+  state._suppressAutoPush = true;
+  try {
+    state.prompts = data.prompts || [];
+    state.wordbank = data.wordbank || {};
+    state.folders = Array.isArray(data.folders) ? data.folders : [];
+    state.folderIcons = (data.folderIcons && typeof data.folderIcons === 'object') ? data.folderIcons : {};
+    state.lastModified = data.lastModified || Date.now();
+    // Persist locally without re-triggering push
+    localStorage.setItem(STORE_KEY, JSON.stringify({
+      prompts: state.prompts,
+      wordbank: state.wordbank,
+      folders: state.folders,
+      folderIcons: state.folderIcons,
+      lastModified: state.lastModified,
+    }));
+    settings.lastSyncAt = Date.now();
+    saveSettings();
+  } finally {
+    state._suppressAutoPush = false;
+  }
+  // Re-render everything
+  renderFolders();
+  renderPromptList();
+  if (state.selectedPromptId) renderPromptEditor();
+  renderCategories();
+  renderComposeList();
+  refreshCompose(false);
+  updateSyncInfo();
+}
+
+async function syncNow() {
+  if (!settings.syncToken) { toast('GitHub 토큰을 먼저 입력하세요', true); return; }
+  // No gist yet → push to create
+  if (!settings.syncGistId) {
+    try {
+      await syncPush();
+      toast('새 Gist 생성 완료 — Gist ID가 자동 입력되었습니다');
+    } catch (e) { toast('동기화 실패: ' + e.message, true); }
+    return;
+  }
+  // Pull, compare timestamps, decide
+  let remote;
+  try {
+    remote = await syncPull();
+  } catch (e) { toast('가져오기 실패: ' + e.message, true); return; }
+
+  const localM = state.lastModified || 0;
+  const remoteM = remote.lastModified || 0;
+
+  if (remoteM === localM) {
+    toast('이미 최신 상태입니다');
+    return;
+  }
+  if (remoteM > localM) {
+    // Remote is newer
+    if (localM > settings.lastSyncAt) {
+      // Local also has unsynced changes → conflict
+      const choice = confirm(
+        `⚠ 충돌 감지\n\n원격에 새 버전이 있고, 이 기기에도 마지막 동기화 이후 변경이 있습니다.\n\n` +
+        `[확인] 원격 버전을 가져옵니다 (이 기기의 변경사항 손실)\n` +
+        `[취소] 이 기기의 데이터로 원격을 덮어씁니다`
+      );
+      if (choice) { applyPulledData(remote); toast('원격 버전을 가져왔습니다'); }
+      else { try { await syncPush(); toast('이 기기의 데이터로 원격을 덮어썼습니다'); } catch (e) { toast('업로드 실패: ' + e.message, true); } }
+    } else {
+      applyPulledData(remote);
+      toast('원격에서 최신 데이터를 가져왔습니다');
+    }
+  } else {
+    // Local is newer
+    try { await syncPush(); toast('원격에 업로드했습니다'); }
+    catch (e) { toast('업로드 실패: ' + e.message, true); }
+  }
+}
+
+let _pushTimer;
+function scheduleAutoPush() {
+  clearTimeout(_pushTimer);
+  _pushTimer = setTimeout(() => {
+    syncPush().catch(e => {
+      console.warn('auto-push failed', e);
+      setSyncStatus('실패', 'bad');
+    });
+  }, 3000); // debounce 3s
+}
+
+async function autoPullOnInit() {
+  if (!settings.autoSync || !settings.syncToken || !settings.syncGistId) return;
+  try {
+    const remote = await syncPull();
+    const localM = state.lastModified || 0;
+    const remoteM = remote.lastModified || 0;
+    if (remoteM > localM) {
+      applyPulledData(remote);
+      toast('최신 데이터를 동기화했습니다');
+    }
+  } catch (e) {
+    console.warn('auto-pull failed', e);
+    setSyncStatus('실패', 'bad');
+  }
+}
+
+/* =========================================================
  * SETTINGS / IMPORT / EXPORT
  * ========================================================= */
 function openSettings() {
   $('#apiKeyInput').value = settings.apiKey || '';
   $('#modelSelect').value = settings.model;
+  $('#syncTokenInput').value = settings.syncToken || '';
+  $('#syncGistInput').value = settings.syncGistId || '';
+  $('#syncAutoToggle').checked = !!settings.autoSync;
+  // Update status
+  if (settings.syncToken && settings.syncGistId) setSyncStatus('연결됨', 'ok');
+  else if (settings.syncToken) setSyncStatus('Gist 미생성', 'warn');
+  else setSyncStatus('미설정', '');
+  updateSyncInfo();
   $('#settingsModal').classList.add('open');
 }
 $('#btnSettings').addEventListener('click', openSettings);
@@ -1823,9 +2103,73 @@ $('#btnSettingsClose').addEventListener('click', () => $('#settingsModal').class
 $('#btnSettingsSave').addEventListener('click', () => {
   settings.apiKey = $('#apiKeyInput').value.trim();
   settings.model = $('#modelSelect').value;
+  settings.syncToken = $('#syncTokenInput').value.trim();
+  settings.syncGistId = $('#syncGistInput').value.trim();
+  settings.autoSync = $('#syncAutoToggle').checked;
   saveSettings();
   $('#settingsModal').classList.remove('open');
   toast('설정이 저장되었습니다');
+});
+
+/* Sync button handlers */
+$('#btnCopyGistId').addEventListener('click', async () => {
+  const id = $('#syncGistInput').value.trim();
+  if (!id) { toast('Gist ID가 없습니다', true); return; }
+  await navigator.clipboard.writeText(id);
+  toast('Gist ID를 복사했습니다');
+});
+$('#btnSyncTest').addEventListener('click', async () => {
+  const token = $('#syncTokenInput').value.trim();
+  if (!token) { toast('토큰을 먼저 입력하세요', true); return; }
+  setSyncStatus('확인 중', 'busy');
+  try {
+    const res = await fetch('https://api.github.com/user', {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Accept': 'application/vnd.github+json',
+      },
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const user = await res.json();
+    setSyncStatus('연결됨', 'ok');
+    toast(`✓ 토큰 유효 — 사용자: ${user.login}`);
+  } catch (e) {
+    setSyncStatus('인증 실패', 'bad');
+    toast('연결 실패: ' + e.message, true);
+  }
+});
+$('#btnSyncPush').addEventListener('click', async () => {
+  // Save current settings inputs first (so syncPush uses fresh token/gist)
+  settings.syncToken = $('#syncTokenInput').value.trim();
+  settings.syncGistId = $('#syncGistInput').value.trim();
+  saveSettings();
+  if (!settings.syncToken) { toast('토큰을 입력하세요', true); return; }
+  try {
+    await syncPush();
+    $('#syncGistInput').value = settings.syncGistId;
+    toast('원격에 업로드 완료');
+  } catch (e) { toast('업로드 실패: ' + e.message, true); }
+});
+$('#btnSyncPull').addEventListener('click', async () => {
+  settings.syncToken = $('#syncTokenInput').value.trim();
+  settings.syncGistId = $('#syncGistInput').value.trim();
+  saveSettings();
+  if (!settings.syncToken || !settings.syncGistId) {
+    toast('토큰과 Gist ID가 모두 필요합니다', true); return;
+  }
+  if (!confirm('원격 데이터로 이 기기의 데이터를 교체합니다. 진행할까요?')) return;
+  try {
+    const data = await syncPull();
+    applyPulledData(data);
+    toast('원격에서 가져오기 완료');
+  } catch (e) { toast('가져오기 실패: ' + e.message, true); }
+});
+$('#btnSyncNow').addEventListener('click', async () => {
+  settings.syncToken = $('#syncTokenInput').value.trim();
+  settings.syncGistId = $('#syncGistInput').value.trim();
+  saveSettings();
+  await syncNow();
+  $('#syncGistInput').value = settings.syncGistId || '';
 });
 
 $('#btnExport').addEventListener('click', () => {
@@ -2130,6 +2474,9 @@ renderPromptList();
 renderCategories();
 renderComposeList();
 refreshCompose(false);
+
+// Attempt auto-pull from Gist if configured (non-blocking)
+autoPullOnInit();
 
 // Keyboard shortcuts
 document.addEventListener('keydown', (e) => {
